@@ -109,6 +109,24 @@ pub struct Connected {
     pub backend_id: String,
     counters: Arc<BackendCounters>,
     _permit: CapacityPermit,
+    _active: ActiveGuard,
+}
+
+/// Décrémente le compteur de connexions actives quoi qu'il arrive.
+///
+/// Sans ce garde, un abandon entre l'établissement du tunnel et le relais —
+/// typiquement un client qui raccroche pendant qu'on lui répond — laisserait la
+/// jauge gonflée jusqu'au redémarrage.
+struct ActiveGuard {
+    counters: Arc<BackendCounters>,
+}
+
+impl Drop for ActiveGuard {
+    fn drop(&mut self) {
+        self.counters
+            .connections_active
+            .fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 /// Une connexion cliente, du premier octet jusqu'à l'enregistrement de clôture.
@@ -215,8 +233,9 @@ impl Session {
                 Ok(Connected {
                     stream,
                     backend_id: decision.backend_id,
-                    counters,
+                    counters: Arc::clone(&counters),
                     _permit: permit,
+                    _active: ActiveGuard { counters },
                 })
             }
             Err(err) => {
@@ -250,6 +269,7 @@ impl Session {
             backend_id,
             counters,
             _permit,
+            _active,
         } = connected;
 
         let (transferred, outcome) = relay::relay(
@@ -260,7 +280,7 @@ impl Session {
         )
         .await;
 
-        counters.connections_active.fetch_sub(1, Ordering::Relaxed);
+        // La jauge de connexions actives est rendue par `ActiveGuard`.
         let detail = match &outcome {
             Ok(()) => None,
             Err(err) => Some(err.to_string()),
@@ -279,6 +299,19 @@ impl Session {
             up = transferred.up,
             down = transferred.down,
             "tunnel fermé"
+        );
+    }
+
+    /// Consigne un tunnel abandonné entre son établissement et le relais, quand
+    /// le client raccroche pendant qu'on lui répond.
+    pub fn note_aborted(&self, target: &Target, backend_id: &str, detail: impl Into<String>) {
+        self.write_record(
+            target,
+            Some(backend_id),
+            None,
+            ConnectionStatus::Failed,
+            Default::default(),
+            Some(detail.into()),
         );
     }
 

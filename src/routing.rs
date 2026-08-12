@@ -37,6 +37,11 @@ pub enum Host {
 impl Target {
     pub fn new(host: impl Into<String>, port: u16) -> Self {
         let host: String = host.into();
+        // Un nom pleinement qualifié peut légalement se terminer par un point.
+        // Sans cette normalisation, `exemple.onion.` échapperait à la règle du
+        // suffixe `.onion`, retomberait sur le backend par défaut et serait
+        // résolu localement : une fuite DNS caractérisée.
+        let host = host.strip_suffix('.').unwrap_or(&host).to_string();
         match host.parse::<IpAddr>() {
             Ok(ip) => Target {
                 host: Host::Ip(ip),
@@ -177,10 +182,11 @@ impl Router {
             }
         }
         // Tor et I2P résolvent les noms à l'intérieur du tunnel ; leur passer
-        // une IP brute échoue, ou pire, ressort par un chemin inattendu.
-        if self.block_bare_ip_on_hidden
-            && matches!(target.host, Host::Ip(_))
-            && (backend_id == "tor" || backend_id == "i2p")
+        // une IP brute échoue, ou pire, ressort par un chemin inattendu. Le
+        // garde-fou suit la propriété déclarée du backend, jamais son
+        // identifiant : renommer « tor » ne doit pas désarmer la protection en
+        // silence.
+        if self.block_bare_ip_on_hidden && backend.names_only && matches!(target.host, Host::Ip(_))
         {
             return Verdict::Deny(DenyReason::BareIpOnHiddenBackend);
         }
@@ -378,6 +384,54 @@ mod tests {
     }
 
     #[test]
+    fn a_trailing_dot_still_reaches_the_onion_rule() {
+        let (router, backends) = router();
+        // Un point final est légal dans un nom pleinement qualifié ; sans
+        // normalisation, cette destination fuirait en clair.
+        let decision = router.route(&Target::new("exemple.onion.", 443), &backends);
+        assert_eq!(decision.backend_id, "tor");
+        assert_eq!(decision.matched_rule.as_deref(), Some("onion"));
+        assert_eq!(
+            router
+                .route(&Target::new("stats.i2p.", 80), &backends)
+                .backend_id,
+            "i2p"
+        );
+    }
+
+    #[test]
+    fn the_bare_ip_guard_follows_the_backend_property_not_its_id() {
+        let mut cfg = Config::default();
+        // Le backend Tor est renommé : la protection doit suivre la propriété
+        // déclarée, pas l'identifiant.
+        cfg.backends[0].id = "reseau-cache".into();
+        cfg.routing.rules[0].backend = "reseau-cache".into();
+        cfg.routing.rules.push(Rule {
+            id: "ip-directe".into(),
+            match_type: MatchType::Cidr,
+            pattern: "1.1.1.0/24".into(),
+            backend: "reseau-cache".into(),
+            enabled: true,
+            note: None,
+        });
+        let router = Router::from_config(&cfg);
+        assert_eq!(
+            router
+                .route(&Target::new("1.1.1.1", 443), &cfg.backends)
+                .verdict,
+            Verdict::Deny(DenyReason::BareIpOnHiddenBackend)
+        );
+
+        // À l'inverse, un backend qui accepte les IP n'est pas entravé.
+        assert_eq!(
+            router
+                .route(&Target::new("1.0.0.1", 443), &cfg.backends)
+                .verdict,
+            Verdict::Allow
+        );
+    }
+
+    #[test]
     fn a_hostname_merely_containing_onion_is_not_tor() {
         let (router, backends) = router();
         assert_eq!(
@@ -397,6 +451,7 @@ mod tests {
 
     #[test]
     fn bare_ip_is_refused_on_hidden_backends() {
+        #[allow(clippy::field_reassign_with_default)]
         let mut cfg = Config::default();
         cfg.routing.rules.push(Rule {
             id: "ip-to-tor".into(),

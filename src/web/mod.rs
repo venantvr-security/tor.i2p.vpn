@@ -255,17 +255,40 @@ async fn require_auth(
 // ---------------------------------------------------------------------------
 
 /// Métriques poussées en SSE, une trame par période d'échantillonnage.
+///
+/// Le flux transporte les adresses des clients et leurs destinations : la
+/// session est donc revérifiée à chaque trame, sans quoi une connexion ouverte
+/// continuerait d'émettre après une déconnexion ou l'expiration du jeton.
 async fn stream(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let stream = futures_util::stream::unfold(state, |state| async move {
+    let token = headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(auth::token_from_cookie_header)
+        .map(str::to_string);
+
+    let stream = futures_util::stream::unfold((state, token), |(state, token)| async move {
         tokio::time::sleep(Duration::from_secs(SAMPLE_PERIOD_S)).await;
+
+        let secret = state.config().auth.session_secret.clone();
+        let still_valid = match (&secret, &token) {
+            (Some(secret), Some(token)) => auth::verify_token(secret, token, now_s()).is_ok(),
+            _ => false,
+        };
+        if !still_valid {
+            // Terminer le flux force le navigateur à repasser par l'API, qui
+            // lui répondra 401 et le renverra sur l'écran de connexion.
+            return None;
+        }
+
         let payload = api::live_snapshot(&state);
         let event = Event::default()
             .event("metrics")
             .json_data(payload)
             .unwrap_or_else(|_| Event::default().comment("échec de sérialisation"));
-        Some((Ok(event), state))
+        Some((Ok(event), (state, token)))
     });
 
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))

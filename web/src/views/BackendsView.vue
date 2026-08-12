@@ -28,6 +28,7 @@ function addBackend() {
     id,
     label: id,
     enabled: true,
+    names_only: false,
     kind: 'socks5',
     address: '127.0.0.1:9050',
   })
@@ -61,6 +62,24 @@ const hasCredentials = computed({
     config.value.proxy.credentials = value ? { username: '', password: '' } : null
   },
 })
+
+/**
+ * Une adresse d'écoute vidée doit devenir `null`, pas la chaîne vide : c'est
+ * `null` qui désactive l'écoute côté passerelle, tandis qu'une chaîne vide est
+ * rejetée comme adresse invalide.
+ */
+function bindField(key) {
+  return computed({
+    get: () => config.value.proxy[key] ?? '',
+    set: (value) => {
+      const trimmed = value.trim()
+      config.value.proxy[key] = trimmed === '' ? null : trimmed
+    },
+  })
+}
+
+const socks5Bind = bindField('socks5_bind')
+const httpBind = bindField('http_bind')
 </script>
 
 <template>
@@ -109,6 +128,11 @@ const hasCredentials = computed({
                   {{ label }}
                 </option>
               </select>
+            </label>
+
+            <label class="check names-only">
+              <input v-model="backend.names_only" type="checkbox" />
+              Ne route que des noms, jamais une IP brute
             </label>
 
             <label v-if="backend.kind === 'socks5' || backend.kind === 'http_connect'" class="field">
@@ -166,11 +190,11 @@ const hasCredentials = computed({
       <div class="grid cols-2">
         <label class="field">
           SOCKS5
-          <input v-model="config.proxy.socks5_bind" type="text" class="mono" placeholder="0.0.0.0:1080" />
+          <input v-model="socks5Bind" type="text" class="mono" placeholder="désactivée" />
         </label>
         <label class="field">
           HTTP
-          <input v-model="config.proxy.http_bind" type="text" class="mono" placeholder="0.0.0.0:8118" />
+          <input v-model="httpBind" type="text" class="mono" placeholder="désactivée" />
         </label>
         <label class="field">
           Connexions simultanées maximum
@@ -250,6 +274,11 @@ const hasCredentials = computed({
 .fields {
   display: grid;
   gap: 9px;
+}
+
+.names-only {
+  font-size: 13px;
+  margin-top: 2px;
 }
 
 .backend footer {

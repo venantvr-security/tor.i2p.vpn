@@ -247,7 +247,10 @@ impl Session {
                 bail!("le port de contrôle Tor a fermé la connexion");
             }
             let line = line.trim_end_matches(['\r', '\n']).to_string();
-            if line.len() < 4 {
+            // Le préambule `NNN<séparateur>` est de l'ASCII par construction ;
+            // on le vérifie avant de découper, car un octet non ASCII en tête
+            // ferait paniquer un découpage par indices sur une chaîne UTF-8.
+            if line.len() < 4 || !line.is_char_boundary(3) || !line.is_char_boundary(4) {
                 bail!("réponse de contrôle mal formée `{line}`");
             }
             let code: u16 = line[..3]

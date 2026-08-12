@@ -69,7 +69,11 @@ async fn handle(state: Arc<AppState>, mut stream: TcpStream, peer: SocketAddr) {
 
     match session.establish(&target).await {
         Ok(connected) => {
-            if reply(&mut stream, 0x00).await.is_err() {
+            // Le client peut disparaître entre l'ouverture du tunnel et notre
+            // réponse : l'enregistrement doit alors être clos, pas laissé actif.
+            if let Err(err) = reply(&mut stream, 0x00).await {
+                session.note_aborted(&target, &connected.backend_id, err.to_string());
+                debug!(peer = %peer, %err, "tunnel abandonné avant le relais");
                 return;
             }
             session.relay(&target, stream, connected).await;

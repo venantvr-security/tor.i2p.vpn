@@ -106,28 +106,48 @@ async fn handle(state: Arc<AppState>, stream: TcpStream, peer: SocketAddr) {
     let mut client = reader.into_inner();
     let mut upstream = connected;
 
-    if request.is_connect {
-        if client
-            .write_all(b"HTTP/1.1 200 Connection established\r\nProxy-Agent: tiv-gateway\r\n\r\n")
-            .await
-            .is_err()
-        {
-            return;
-        }
-        if !pending.is_empty() && upstream.stream.write_all(&pending).await.is_err() {
-            return;
-        }
+    // Amorçage du tunnel. Un échec ici doit clore l'enregistrement : sinon la
+    // connexion resterait affichée « en cours » jusqu'au redémarrage.
+    let primed = if request.is_connect {
+        prime_connect(&mut client, &mut upstream.stream, &pending).await
     } else {
-        let head = request.forwarded_head();
-        if upstream.stream.write_all(head.as_bytes()).await.is_err() {
-            return;
-        }
-        if !pending.is_empty() && upstream.stream.write_all(&pending).await.is_err() {
-            return;
-        }
+        prime_forward(&mut upstream.stream, &request.forwarded_head(), &pending).await
+    };
+    if let Err(err) = primed {
+        session.note_aborted(&target, &upstream.backend_id, err.to_string());
+        debug!(peer = %peer, %err, "tunnel abandonné avant le relais");
+        return;
     }
 
     session.relay(&target, client, upstream).await;
+}
+
+/// Confirme le tunnel au client, puis lui transmet ce qu'il avait déjà envoyé.
+async fn prime_connect(
+    client: &mut TcpStream,
+    upstream: &mut TcpStream,
+    pending: &[u8],
+) -> std::io::Result<()> {
+    client
+        .write_all(b"HTTP/1.1 200 Connection established\r\nProxy-Agent: tiv-gateway\r\n\r\n")
+        .await?;
+    if !pending.is_empty() {
+        upstream.write_all(pending).await?;
+    }
+    Ok(())
+}
+
+/// Envoie à l'amont l'en-tête réécrit, suivi du corps déjà reçu.
+async fn prime_forward(
+    upstream: &mut TcpStream,
+    head: &str,
+    pending: &[u8],
+) -> std::io::Result<()> {
+    upstream.write_all(head.as_bytes()).await?;
+    if !pending.is_empty() {
+        upstream.write_all(pending).await?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -223,11 +243,18 @@ impl Request {
     }
 }
 
+/// Retire le schéma et l'autorité d'une URI absolue.
+///
+/// La coupure se fait sur le premier `/`, `?` ou `#` : une URI sans chemin mais
+/// avec une requête (`http://hôte?q=x`) doit conserver cette requête, sous peine
+/// de transmettre à l'amont une requête amputée.
 fn origin_form(uri: &str) -> String {
     for prefix in ["http://", "https://"] {
         if let Some(rest) = uri.strip_prefix(prefix) {
-            return match rest.find('/') {
-                Some(idx) => rest[idx..].to_string(),
+            return match rest.find(['/', '?', '#']) {
+                Some(idx) if rest.as_bytes()[idx] == b'/' => rest[idx..].to_string(),
+                // Ni chemin ni fragment : la forme d'origine doit repartir de `/`.
+                Some(idx) => format!("/{}", &rest[idx..]),
                 None => "/".to_string(),
             };
         }
@@ -302,16 +329,39 @@ async fn read_head(reader: &mut BufReader<TcpStream>) -> Result<Request, HeadErr
     })
 }
 
+/// Lit une ligne d'en-tête en décomptant le budget au fur et à mesure.
+///
+/// `read_until` allouerait sans borne tant qu'aucun saut de ligne n'arrive : un
+/// client du réseau local pourrait ainsi faire gonfler la mémoire pendant toute
+/// la fenêtre de poignée de main. On consomme donc le tampon morceau par
+/// morceau, en s'arrêtant dès que le budget est épuisé.
 async fn read_line(
     reader: &mut BufReader<TcpStream>,
     budget: &mut usize,
 ) -> Result<String, HeadError> {
     let mut raw = Vec::new();
-    let read = reader.read_until(b'\n', &mut raw).await?;
-    if read == 0 {
-        return Err(HeadError::Closed);
+    loop {
+        let chunk = reader.fill_buf().await?;
+        if chunk.is_empty() {
+            if raw.is_empty() {
+                return Err(HeadError::Closed);
+            }
+            break;
+        }
+        let (taken, complete) = match chunk.iter().position(|byte| *byte == b'\n') {
+            Some(index) => (index + 1, true),
+            None => (chunk.len(), false),
+        };
+        if taken > *budget {
+            return Err(HeadError::TooLarge);
+        }
+        raw.extend_from_slice(&chunk[..taken]);
+        reader.consume(taken);
+        *budget -= taken;
+        if complete {
+            break;
+        }
     }
-    *budget = budget.checked_sub(read).ok_or(HeadError::TooLarge)?;
     while raw.last().is_some_and(|b| *b == b'\n' || *b == b'\r') {
         raw.pop();
     }
@@ -408,6 +458,41 @@ mod tests {
         assert_eq!(origin_form("http://example.com/a/b?c=d"), "/a/b?c=d");
         assert_eq!(origin_form("http://example.com"), "/");
         assert_eq!(origin_form("/already/origin"), "/already/origin");
+    }
+
+    #[test]
+    fn a_query_without_a_path_is_not_dropped() {
+        // Sans chemin, la requête doit malgré tout parvenir à l'amont.
+        assert_eq!(origin_form("http://example.com?q=x"), "/?q=x");
+        assert_eq!(origin_form("http://example.com#ancre"), "/#ancre");
+    }
+
+    #[tokio::test]
+    async fn an_endless_header_line_is_cut_short_instead_of_buffered() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(socket);
+            read_head(&mut reader).await
+        });
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        // Un flot d'octets sans jamais de saut de ligne : la lecture doit
+        // s'arrêter sur le budget, pas allouer sans fin.
+        let filler = vec![b'a'; 8 * 1024];
+        for _ in 0..16 {
+            if client.write_all(&filler).await.is_err() {
+                break;
+            }
+        }
+
+        let outcome = server.await.unwrap();
+        assert!(
+            matches!(outcome, Err(HeadError::TooLarge)),
+            "attendu TooLarge, obtenu {outcome:?}"
+        );
     }
 
     #[test]

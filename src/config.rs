@@ -114,6 +114,11 @@ pub struct Backend {
     pub label: String,
     #[serde(default = "yes")]
     pub enabled: bool,
+    /// Ce backend ne sait router que des noms, jamais une IP brute — c'est le
+    /// cas de Tor et d'I2P, qui résolvent dans leur propre tunnel. Sert de base
+    /// au refus des IP brutes, plutôt qu'une liste d'identifiants en dur.
+    #[serde(default)]
+    pub names_only: bool,
     #[serde(flatten)]
     pub kind: BackendKind,
 }
@@ -147,6 +152,7 @@ impl Backend {
                 id: "tor".into(),
                 label: "Tor".into(),
                 enabled: true,
+                names_only: true,
                 kind: BackendKind::Socks5 {
                     address: "127.0.0.1:9050".into(),
                     username: None,
@@ -157,6 +163,7 @@ impl Backend {
                 id: "i2p".into(),
                 label: "I2P".into(),
                 enabled: true,
+                names_only: true,
                 kind: BackendKind::Socks5 {
                     address: "127.0.0.1:4447".into(),
                     username: None,
@@ -167,6 +174,7 @@ impl Backend {
                 id: "vpn".into(),
                 label: "VPN / clearnet".into(),
                 enabled: true,
+                names_only: false,
                 kind: BackendKind::Direct,
             },
         ]

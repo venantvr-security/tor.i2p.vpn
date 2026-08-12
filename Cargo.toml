@@ -37,5 +37,8 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 opt-level = "z"
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true
+# `panic = "abort"` est volontairement écarté : une passerelle domestique doit
+# rester debout. En déroulement, un panic dans une tâche de connexion tue cette
+# tâche seule, tokio le rattrape, et le reste du trafic continue de passer.
+panic = "unwind"

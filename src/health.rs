@@ -364,6 +364,8 @@ async fn probe_i2p(backend: Backend, health: HealthConfig) -> ProbeResult {
 
 /// Construit un client HTTP dont la sortie correspond au backend visé.
 fn client_for(backend: &Backend, health: &HealthConfig) -> anyhow::Result<Client> {
+    // reqwest panique s'il construit un client sans fournisseur cryptographique.
+    crate::install_crypto_provider();
     let timeout = Duration::from_secs(health.timeout_s.max(1));
     let builder = Client::builder()
         .timeout(timeout)
@@ -404,14 +406,40 @@ fn extract_ip(body: &str) -> Option<String> {
     None
 }
 
-/// Les chaînes d'erreurs de reqwest sont longues : on garde l'interface lisible.
+/// Rend une erreur de sonde en français, courte et exploitable.
+///
+/// Les erreurs de reqwest sont longues, en anglais, et détaillent une pile
+/// d'appels sans intérêt pour l'exploitant : on les traduit en une phrase quand
+/// on reconnaît le cas, et on se rabat sur le message brut sinon.
+///
+/// La coupure se fait sur une frontière de caractère : un message contenant un
+/// accent ou une URL non ASCII ferait paniquer un découpage par octets, et le
+/// profil de production compile avec `panic = "abort"`.
 fn short_error(err: &anyhow::Error) -> String {
+    if let Some(cause) = err.downcast_ref::<reqwest::Error>() {
+        if cause.is_timeout() {
+            return "délai dépassé : le backend n'a pas répondu à temps".to_string();
+        }
+        if cause.is_connect() {
+            return "connexion impossible : le proxy amont est-il démarré ?".to_string();
+        }
+        if let Some(status) = cause.status() {
+            return format!("le service de vérification a répondu {status}");
+        }
+        if cause.is_decode() {
+            return "réponse illisible du service de vérification".to_string();
+        }
+        if cause.is_request() {
+            return "requête refusée avant même de sortir".to_string();
+        }
+    }
+
     let text = format!("{err}");
     let text = text.split(": http").next().unwrap_or(&text).to_string();
-    if text.len() > 180 {
-        format!("{}…", &text[..180])
-    } else {
-        text
+    const LIMIT: usize = 180;
+    match text.char_indices().nth(LIMIT) {
+        Some((cut, _)) => format!("{}…", &text[..cut]),
+        None => text,
     }
 }
 
@@ -502,6 +530,39 @@ mod tests {
         let findings = analyse(&probes, &config);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Info);
+    }
+
+    #[tokio::test]
+    async fn a_probe_failure_is_reported_in_french() {
+        // Une adresse amont fermée : reqwest renvoie une erreur anglaise que
+        // l'interface ne doit jamais afficher telle quelle.
+        crate::install_crypto_provider();
+        let client = Client::builder()
+            .timeout(Duration::from_secs(2))
+            .no_proxy()
+            .build()
+            .unwrap();
+        let err = client
+            .get("http://127.0.0.1:1/")
+            .send()
+            .await
+            .map_err(anyhow::Error::from)
+            .unwrap_err();
+        let message = short_error(&err);
+        assert!(
+            message.contains("connexion impossible") || message.contains("délai dépassé"),
+            "message inattendu : {message}"
+        );
+    }
+
+    #[test]
+    fn a_long_accented_error_is_truncated_on_a_character_boundary() {
+        // Un découpage par octets couperait au milieu d'un « é » et paniquerait,
+        // ce qui abattrait tout le processus en profil de production.
+        let long = "é".repeat(400);
+        let shortened = short_error(&anyhow::anyhow!("{long}"));
+        assert!(shortened.ends_with('…'));
+        assert_eq!(shortened.chars().count(), 181);
     }
 
     #[test]

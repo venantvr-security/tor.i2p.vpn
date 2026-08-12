@@ -84,6 +84,37 @@ passerelle pour une destination cachée.
 
 ## L'interface web
 
+Les captures ci-dessous sont prises sur une passerelle réellement en marche ;
+les chiffres viennent du trafic qui la traversait au moment de la prise de vue.
+
+### Tableau de bord
+
+Débit montant et descendant en temps réel, répartition par backend, journal des
+connexions avec leur destination, la règle appliquée et le volume échangé.
+
+![Tableau de bord : débit temps réel, répartition par backend et journal des connexions](docs/captures/tableau-de-bord.png)
+
+L'interface suit le thème du système, et le thème sombre est choisi pas à pas
+plutôt qu'inversé automatiquement :
+
+![Le même tableau de bord en thème sombre](docs/captures/tableau-de-bord-sombre.png)
+
+### Routage
+
+Les règles s'ordonnent par priorité, et le simulateur répond « où partirait ce
+nom d'hôte ? » sans ouvrir la moindre connexion :
+
+![Page de routage : liste ordonnée des règles, garde-fous et simulateur de destination](docs/captures/routage.png)
+
+### Backends
+
+Adresses des proxys Tor et I2P sur l'hôte, type de sortie, écoutes offertes au
+réseau local :
+
+![Page des backends : les trois sorties configurées et les écoutes proxy](docs/captures/backends.png)
+
+### Toutes les pages
+
 | Page | Ce qu'on y fait |
 |---|---|
 | **Tableau de bord** | Débit montant et descendant en temps réel, répartition par backend, journal des connexions récentes avec leur destination, leur règle et leur volume. |

@@ -17,7 +17,11 @@ const props = defineProps({
   height: { type: Number, default: 190 },
 })
 
-const PADDING = { top: 14, right: 62, bottom: 22, left: 52 }
+// La marge gauche doit loger une graduation complète du type « 1.9 Mo/s », et
+// la marge droite l'étiquette directe de fin de série.
+const PADDING = { top: 16, right: 74, bottom: 22, left: 70 }
+/// Écart vertical minimal entre deux étiquettes directes avant décalage.
+const LABEL_GAP = 13
 
 const wrapper = ref(null)
 const width = ref(720)
@@ -88,6 +92,30 @@ const ticks = computed(() => [0, 0.5, 1].map((ratio) => ({
 })))
 
 const lastSample = computed(() => points.value[points.value.length - 1] ?? null)
+
+/**
+ * Étiquettes directes de fin de série, écartées quand les deux valeurs se
+ * confondent — c'est le cas courant à débit nul, où elles se superposeraient.
+ */
+const endLabels = computed(() => {
+  const sample = lastSample.value
+  if (!sample) return []
+  const placed = series.map((entry) => ({
+    key: entry.key,
+    color: entry.color,
+    value: sample[entry.key] ?? 0,
+    y: y(sample[entry.key]),
+  }))
+  const [first, second] = placed
+  if (Math.abs(first.y - second.y) < LABEL_GAP) {
+    // La série la plus haute monte, l'autre descend, d'une demi-hauteur chacune.
+    const higher = first.y <= second.y ? first : second
+    const lower = higher === first ? second : first
+    higher.y -= LABEL_GAP / 2
+    lower.y += LABEL_GAP / 2
+  }
+  return placed
+})
 
 /** Point survolé, ou dernier point quand la souris est ailleurs. */
 const focused = computed(() => {
@@ -186,16 +214,16 @@ const tooltipStyle = computed(() => {
           />
 
           <!-- Étiquetage direct de la dernière valeur de chaque série. -->
-          <g v-if="lastSample">
+          <g>
             <text
-              v-for="entry in series"
-              :key="`tag-${entry.key}`"
+              v-for="label in endLabels"
+              :key="`tag-${label.key}`"
               :x="width - PADDING.right + 8"
-              :y="y(lastSample[entry.key]) + 4"
+              :y="label.y + 4"
               class="tag"
-              :fill="entry.color"
+              :fill="label.color"
             >
-              {{ rate(lastSample[entry.key]) }}
+              {{ rate(label.value) }}
             </text>
           </g>
 

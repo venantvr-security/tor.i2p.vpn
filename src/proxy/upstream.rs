@@ -405,6 +405,7 @@ mod tests {
             id: "tor".into(),
             label: "Tor".into(),
             enabled: true,
+            names_only: true,
             kind: BackendKind::Socks5 {
                 address: addr.to_string(),
                 username: None,
@@ -430,6 +431,7 @@ mod tests {
             id: "off".into(),
             label: "Blocked".into(),
             enabled: true,
+            names_only: false,
             kind: BackendKind::Block,
         };
         let err = connect(
@@ -449,6 +451,7 @@ mod tests {
             id: "vpn".into(),
             label: "VPN".into(),
             enabled: true,
+            names_only: false,
             kind: BackendKind::Direct,
         };
         let err = connect(

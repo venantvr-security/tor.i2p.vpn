@@ -179,14 +179,15 @@ async function probe() {
           </label>
           <label class="check">
             <input v-model="config.routing.block_bare_ip_on_hidden" type="checkbox" />
-            Refuser les IP brutes sur les backends Tor et I2P
+            Refuser les IP brutes sur les backends qui ne routent que des noms
           </label>
         </div>
       </div>
       <p class="hint spaced">
         Ces deux garde-fous empêchent qu'un client du réseau local n'utilise la
         passerelle pour atteindre le LAN, et qu'une IP brute confiée à Tor ou I2P
-        ne ressorte par un chemin inattendu.
+        ne ressorte par un chemin inattendu. Les backends concernés par le second
+        sont ceux marqués « ne route que des noms » dans la page Backends.
       </p>
     </div>
 

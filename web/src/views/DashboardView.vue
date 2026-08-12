@@ -165,7 +165,7 @@ function statusColor(state) {
       Les {{ recent.length }} dernières connexions vues par la passerelle, la plus
       récente en tête.
     </p>
-    <div class="table-scroll">
+    <div class="table-scroll log">
       <table>
         <thead>
           <tr>
@@ -218,6 +218,20 @@ function statusColor(state) {
 <style scoped>
 .chart-card {
   margin-top: 16px;
+}
+
+/* Le journal défile sur lui-même : quarante lignes ne doivent pas repousser
+   le reste de la page hors de l'écran. */
+.log {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.log thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
 }
 
 .cell-label {

@@ -36,12 +36,7 @@ async fn main() -> Result<()> {
         .with_target(false)
         .init();
 
-    // `ring` plutôt que le fournisseur cryptographique par défaut de rustls :
-    // il se compile sans cmake ni perl, ce qui rend l'image Docker ARM64
-    // constructible sur un Raspberry Pi comme en émulation.
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .map_err(|_| anyhow::anyhow!("le fournisseur cryptographique est déjà installé"))?;
+    install_crypto_provider();
 
     let path = config_path();
     let mut config = Config::load_or_create(&path)
@@ -83,6 +78,24 @@ async fn main() -> Result<()> {
 
     info!("arrêt en cours");
     Ok(())
+}
+
+/// Installe le fournisseur cryptographique de rustls, une seule fois.
+///
+/// `ring` plutôt que le fournisseur par défaut : il se compile sans cmake ni
+/// perl, ce qui rend l'image Docker ARM64 constructible sur un Raspberry Pi
+/// comme en émulation.
+///
+/// Cet appel est indispensable *avant* toute construction de client HTTP :
+/// reqwest panique sinon, et le profil de production compile avec
+/// `panic = "abort"`. On le rend donc idempotent et appelable depuis les sondes
+/// elles-mêmes, plutôt que de dépendre de l'ordre d'initialisation.
+pub fn install_crypto_provider() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        // Une erreur signifie qu'un fournisseur est déjà en place : rien à faire.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
 }
 
 /// Génère les secrets qui doivent exister avant la première requête.

@@ -137,6 +137,8 @@ impl LoginGuard {
     /// Nombre d'échecs tolérés avant le premier verrouillage.
     const FREE_ATTEMPTS: u32 = 5;
     const MAX_LOCKOUT_S: u64 = 900;
+    /// Nombre maximum de sources suivies simultanément.
+    const MAX_TRACKED: usize = 4096;
 
     pub fn new() -> Self {
         LoginGuard {
@@ -156,6 +158,23 @@ impl LoginGuard {
 
     pub fn record_failure(&self, key: &str) {
         let mut guard = self.attempts.lock().expect("login guard lock");
+
+        // Sans purge, une source qui fait tourner son adresse ferait grossir
+        // cette table indéfiniment. On oublie les entrées dont le verrou est
+        // expiré depuis longtemps avant d'en ajouter une nouvelle.
+        if guard.len() >= Self::MAX_TRACKED && !guard.contains_key(key) {
+            let now = std::time::Instant::now();
+            guard.retain(|_, attempt| match attempt.locked_until {
+                Some(until) => until > now,
+                None => false,
+            });
+            // Toutes les entrées sont encore verrouillées : on refuse d'en
+            // suivre davantage plutôt que de consommer de la mémoire sans fin.
+            if guard.len() >= Self::MAX_TRACKED {
+                return;
+            }
+        }
+
         let attempt = guard.entry(key.to_string()).or_insert(Attempt {
             failures: 0,
             locked_until: None,
@@ -195,6 +214,21 @@ mod tests {
 
         guard.record_success("10.0.0.5");
         assert!(guard.locked_for("10.0.0.5").is_none());
+    }
+
+    #[test]
+    fn the_login_guard_does_not_grow_without_bound() {
+        let guard = LoginGuard::new();
+        // Une source qui fait tourner son adresse ne doit pas pouvoir faire
+        // gonfler la table indéfiniment.
+        for index in 0..(LoginGuard::MAX_TRACKED + 500) {
+            guard.record_failure(&format!("10.0.{}.{}", index / 256, index % 256));
+        }
+        let tracked = guard.attempts.lock().unwrap().len();
+        assert!(
+            tracked <= LoginGuard::MAX_TRACKED,
+            "{tracked} entrées suivies"
+        );
     }
 
     #[test]

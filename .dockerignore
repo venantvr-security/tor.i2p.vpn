@@ -8,11 +8,11 @@ data/
 config.toml
 config.toml.tmp
 
-# Historique et outillage
+# Historique, documentation et outillage : rien de tout cela n'entre dans l'image.
 .git/
 .github/
 .gitignore
+docs/
 *.md
-!README.md
 .idea/
 .vscode/

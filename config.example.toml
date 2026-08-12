@@ -44,6 +44,10 @@ idle_timeout_s = 300
 id = "tor"
 label = "Tor"
 enabled = true
+# Ce backend ne sait router que des noms : Tor résout dans son propre tunnel, et
+# une IP brute en ressortirait par un chemin inattendu. C'est ce drapeau, et non
+# l'identifiant du backend, qui arme le refus des IP brutes.
+names_only = true
 kind = "socks5"
 address = "127.0.0.1:9050"
 
@@ -51,6 +55,7 @@ address = "127.0.0.1:9050"
 id = "i2p"
 label = "I2P"
 enabled = true
+names_only = true
 # i2pd expose un proxy SOCKS sur 4447 et un proxy HTTP sur 4444 ; les deux sont
 # utilisables, `kind = "http_connect"` pour le second.
 kind = "socks5"
@@ -60,6 +65,7 @@ address = "127.0.0.1:4447"
 id = "vpn"
 label = "VPN / clearnet"
 enabled = true
+names_only = false
 # Sortie directe : la connexion emprunte la route par défaut de la machine,
 # donc le VPN dès lors que celui-ci est monté. Les sondes de santé vérifient
 # que c'est bien le cas.
