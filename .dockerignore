@@ -1,0 +1,18 @@
+# Artefacts locaux : ils seraient reconstruits dans l'image de toute façon.
+target/
+web/node_modules/
+web/dist/
+
+# Données et configuration locales : jamais dans une image.
+data/
+config.toml
+config.toml.tmp
+
+# Historique et outillage
+.git/
+.github/
+.gitignore
+*.md
+!README.md
+.idea/
+.vscode/

@@ -1,0 +1,41 @@
+[package]
+name = "tiv-gateway"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "Multi-protocol proxy gateway (Tor / I2P / VPN) with web configuration and monitoring"
+license = "MIT"
+repository = "https://github.com/venantvr-security/tor.i2p.vpn"
+
+[dependencies]
+anyhow = "1.0.104"
+arc-swap = "1.9.2"
+argon2 = "0.5.3"
+axum = { version = "0.8.9", features = ["macros"] }
+base64 = "0.23.1"
+futures-util = "0.3.34"
+hex = "0.4.3"
+hmac = "0.12.1"
+rand = "0.9.5"
+reqwest = { version = "0.13.3", default-features = false, features = ["json", "socks", "rustls-no-provider", "charset", "http2"] }
+rust-embed = { version = "8.12.0", features = ["mime-guess"] }
+rustls = { version = "0.23.43", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.10.9"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
+toml = "1.0.7"
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["fs", "trace", "compression-gzip", "set-header"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

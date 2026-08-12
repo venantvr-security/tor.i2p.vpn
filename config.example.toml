@@ -1,0 +1,157 @@
+# Exemple de configuration de la passerelle.
+#
+# Ce fichier est entièrement facultatif : au premier démarrage, la passerelle
+# écrit elle-même l'équivalent de ce contenu dans `/data/config.toml`. Il est
+# reproduit ici pour servir de référence et pour être modifiable hors ligne.
+#
+# Toutes les valeurs sont également modifiables depuis l'interface web, qui
+# réécrit ce fichier. Sauf pour les adresses d'écoute, les changements sont
+# appliqués à chaud, sans redémarrer le conteneur.
+
+[server]
+# Interface d'administration et son API. Changer cette valeur impose un
+# redémarrage du conteneur.
+admin_bind = "0.0.0.0:8080"
+
+[proxy]
+# Écoutes proposées aux clients du réseau local. Retirez une ligne pour
+# désactiver l'écoute correspondante.
+socks5_bind = "0.0.0.0:1080"
+http_bind = "0.0.0.0:8118"
+
+# Plafond de tunnels simultanés. Au-delà, les nouvelles connexions sont
+# refusées plutôt que mises en file d'attente.
+max_connections = 512
+
+# Délai accordé à la poignée de main amont, puis fermeture d'un tunnel resté
+# sans le moindre octet.
+connect_timeout_ms = 20000
+idle_timeout_s = 300
+
+# Authentification des clients du proxy, décommentez pour l'exiger. Elle vaut
+# pour les deux écoutes : RFC 1929 côté SOCKS5, `Proxy-Authorization: Basic`
+# côté HTTP.
+# [proxy.credentials]
+# username = "pi"
+# password = "un-mot-de-passe-solide"
+
+# --- Sorties -----------------------------------------------------------------
+# Tor et I2P tournent sur la machine hôte : les adresses ci-dessous sont celles
+# de leurs proxys locaux. En réseau bridge, remplacez 127.0.0.1 par
+# host.docker.internal.
+
+[[backends]]
+id = "tor"
+label = "Tor"
+enabled = true
+kind = "socks5"
+address = "127.0.0.1:9050"
+
+[[backends]]
+id = "i2p"
+label = "I2P"
+enabled = true
+# i2pd expose un proxy SOCKS sur 4447 et un proxy HTTP sur 4444 ; les deux sont
+# utilisables, `kind = "http_connect"` pour le second.
+kind = "socks5"
+address = "127.0.0.1:4447"
+
+[[backends]]
+id = "vpn"
+label = "VPN / clearnet"
+enabled = true
+# Sortie directe : la connexion emprunte la route par défaut de la machine,
+# donc le VPN dès lors que celui-ci est monté. Les sondes de santé vérifient
+# que c'est bien le cas.
+kind = "direct"
+
+# Sortie de secours qui refuse tout. Mettez-la en backend par défaut si vous
+# préférez couper le clearnet plutôt que risquer une fuite.
+# [[backends]]
+# id = "blocage"
+# label = "Blocage"
+# enabled = true
+# kind = "block"
+
+# --- Routage -----------------------------------------------------------------
+
+[routing]
+# Emprunté par tout ce qui ne correspond à aucune règle.
+default_backend = "vpn"
+
+# Refuse de relayer vers une destination loopback, RFC 1918 ou lien-local :
+# sans cela, un client du réseau local pourrait se servir de la passerelle pour
+# atteindre le reste du LAN.
+block_private_ranges = true
+
+# Refuse une IP brute confiée à Tor ou I2P : ces réseaux résolvent les noms
+# dans leur propre tunnel, et une IP nue en ressortirait par un chemin
+# inattendu.
+block_bare_ip_on_hidden = true
+
+# Les règles sont évaluées dans l'ordre du fichier ; la première correspondance
+# l'emporte. `match_type` accepte : suffix, exact, wildcard, cidr.
+[[routing.rules]]
+id = "onion"
+match_type = "suffix"
+pattern = ".onion"
+backend = "tor"
+enabled = true
+
+[[routing.rules]]
+id = "i2p"
+match_type = "suffix"
+pattern = ".i2p"
+backend = "i2p"
+enabled = true
+
+# Exemple : forcer un domaine clearnet à passer par Tor.
+# [[routing.rules]]
+# id = "recherche"
+# match_type = "wildcard"
+# pattern = "*.duckduckgo.com"
+# backend = "tor"
+# enabled = true
+
+# --- Contrôle de Tor ---------------------------------------------------------
+
+[tor_control]
+# Exige `ControlPort 9051` dans le torrc de la machine hôte. Sans lui, le
+# routage vers .onion fonctionne toujours ; seule la page Tor reste vide.
+enabled = false
+address = "127.0.0.1:9051"
+
+# "cookie", "password" ou "none".
+auth = "cookie"
+cookie_path = "/var/run/tor/control.authcookie"
+# password = "le-mot-de-passe-du-controlport"
+
+# Délai minimum imposé entre deux demandes de nouvelle identité.
+newnym_cooldown_s = 10
+
+# --- Sondes de santé ---------------------------------------------------------
+
+[health]
+enabled = true
+interval_s = 120
+timeout_s = 25
+
+# Interrogés à travers chaque backend, pour comparer les chemins de sortie.
+tor_check_url = "https://check.torproject.org/api/ip"
+ip_check_url = "https://api.ipify.org?format=json"
+i2p_check_url = "http://stats.i2p/"
+
+# Alerte lorsque le trafic clearnet ne passe pas par le VPN. Renseignez
+# `isp_ip_hint` avec l'adresse publique observée sans VPN : si la sortie
+# clearnet lui devient identique, le tunnel est tombé ou il est contourné.
+expect_vpn_exit = true
+# isp_ip_hint = "203.0.113.7"
+
+history_len = 120
+
+# --- Administration ----------------------------------------------------------
+
+[auth]
+# `password_hash` (Argon2id) et `session_secret` sont écrits automatiquement au
+# premier démarrage ; ne les recopiez pas d'une installation à l'autre.
+session_ttl_h = 24

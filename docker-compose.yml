@@ -1,0 +1,114 @@
+# Déploiement de la passerelle sur CasaOS (Raspberry Pi).
+#
+# Tor et I2P sont des prérequis installés sur la machine hôte : ce conteneur ne
+# fait que leur transmettre le trafic. C'est pourquoi il utilise le réseau de
+# l'hôte, seul moyen simple d'atteindre 127.0.0.1:9050 et 127.0.0.1:4447.
+#
+# Une variante en réseau bridge est fournie plus bas si vous préférez un
+# conteneur isolé avec des ports publiés.
+
+services:
+  tiv-gateway:
+    image: ghcr.io/venantvr-security/tor.i2p.vpn:latest
+    container_name: tiv-gateway
+    restart: unless-stopped
+
+    # Le réseau de l'hôte donne accès aux proxys locaux de Tor et d'I2P, et
+    # permet aux sondes de santé de refléter la vraie route de sortie (VPN
+    # compris). Les ports 8080, 1080 et 8118 sont alors ouverts tels quels.
+    network_mode: host
+
+    environment:
+      # Mot de passe administrateur créé au tout premier démarrage. Laissez la
+      # variable vide pour définir le mot de passe depuis l'interface web.
+      TIV_ADMIN_PASSWORD: ${TIV_ADMIN_PASSWORD:-}
+      TIV_CONFIG: /data/config.toml
+      TIV_LOG: info
+
+    volumes:
+      # Configuration persistante. Le conteneur tourne avec l'UID 1000 :
+      #   sudo mkdir -p /DATA/AppData/tiv-gateway && sudo chown -R 1000:1000 /DATA/AppData/tiv-gateway
+      - /DATA/AppData/tiv-gateway:/data
+
+      # Cookie d'authentification du ControlPort de Tor, en lecture seule.
+      # À décommenter si vous activez le contrôle de Tor en mode cookie.
+      # - /var/run/tor/control.authcookie:/var/run/tor/control.authcookie:ro
+
+    # La passerelle relaie du trafic : elle n'a besoin d'aucune capacité
+    # particulière, et le système de fichiers peut rester en lecture seule.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  # --- Variante réseau bridge ------------------------------------------------
+  # Décommentez ce service (et commentez celui du dessus) pour isoler le
+  # conteneur. Il faut alors remplacer 127.0.0.1 par host.docker.internal dans
+  # l'adresse des backends Tor et I2P, depuis la page « Backends ».
+  #
+  # tiv-gateway-bridge:
+  #   image: ghcr.io/venantvr-security/tor.i2p.vpn:latest
+  #   container_name: tiv-gateway
+  #   restart: unless-stopped
+  #   ports:
+  #     - '8080:8080'   # interface d'administration
+  #     - '1080:1080'   # SOCKS5
+  #     - '8118:8118'   # proxy HTTP
+  #   extra_hosts:
+  #     - 'host.docker.internal:host-gateway'
+  #   environment:
+  #     TIV_ADMIN_PASSWORD: ${TIV_ADMIN_PASSWORD:-}
+  #   volumes:
+  #     - /DATA/AppData/tiv-gateway:/data
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: tiv-gateway
+  author: venantvr-security
+  developer: venantvr-security
+  category: Network
+  scheme: http
+  port_map: '8080'
+  index: /
+  icon: https://raw.githubusercontent.com/venantvr-security/tor.i2p.vpn/main/web/public/icon.png
+  tagline:
+    fr_fr: Proxy multi-protocole Tor, I2P et VPN
+    en_us: Multi-protocol Tor, I2P and VPN proxy
+  title:
+    fr_fr: Passerelle Tor / I2P / VPN
+    en_us: Tor / I2P / VPN Gateway
+  description:
+    fr_fr: >-
+      Un unique proxy SOCKS5 et HTTP pour tout le réseau local, qui aiguille le
+      trafic selon le nom de domaine demandé : les adresses .onion partent vers
+      Tor, les .i2p vers I2P, et le reste emprunte le VPN. L'interface web
+      permet de configurer les règles de routage et de surveiller le débit, les
+      circuits Tor et les fuites éventuelles. Tor et I2P doivent être installés
+      sur la machine hôte.
+    en_us: >-
+      A single SOCKS5 and HTTP proxy for the whole LAN that routes traffic by
+      hostname: .onion goes to Tor, .i2p goes to I2P, everything else takes the
+      VPN. The web interface configures the routing rules and monitors
+      throughput, Tor circuits and possible leaks. Tor and I2P are expected to
+      be installed on the host.
+  tips:
+    before_install:
+      fr_fr: >-
+        Créez le dossier de données et donnez-le à l'UID 1000 avant le premier
+        démarrage, puis renseignez TIV_ADMIN_PASSWORD ou définissez le mot de
+        passe depuis l'écran d'accueil.
+      en_us: >-
+        Create the data directory and give it to UID 1000 before the first
+        start, then set TIV_ADMIN_PASSWORD or choose the password from the
+        first-run screen.

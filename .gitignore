@@ -1,0 +1,18 @@
+# Artefacts de compilation Rust
+/target
+
+# Dépendances et build du front. Le dossier `dist` est recréé au besoin par
+# `build.rs`, il n'a donc pas à être versionné.
+/web/node_modules
+/web/dist
+
+# Configuration locale et données d'exécution
+/data
+config.toml
+config.toml.*.tmp
+
+# Fichiers d'éditeur et de système
+.DS_Store
+*.swp
+.idea/
+.vscode/
