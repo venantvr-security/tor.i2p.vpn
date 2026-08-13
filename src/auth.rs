@@ -16,7 +16,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 pub const COOKIE_NAME: &str = "tiv_session";
 /// Refuse les mots de passe administrateur trivialement devinables.
-pub const MIN_PASSWORD_LEN: usize = 10;
+pub const MIN_PASSWORD_LEN: usize = 5;
 
 pub fn hash_password(password: &str) -> Result<String> {
     if password.chars().count() < MIN_PASSWORD_LEN {
@@ -242,7 +242,10 @@ mod tests {
 
     #[test]
     fn short_passwords_are_refused() {
-        assert!(hash_password("short").is_err());
+        // Quatre caracteres : sous la borne, refuse.
+        assert!(hash_password("abcd").is_err());
+        // Cinq caracteres : la nouvelle borne minimale, accepte.
+        assert!(hash_password("abcde").is_ok());
     }
 
     #[test]
