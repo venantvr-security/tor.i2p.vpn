@@ -2,8 +2,8 @@
 //!
 //! Le fichier entier est facultatif : chaque section et chaque champ possède une
 //! valeur par défaut, si bien qu'un déploiement neuf démarre avec une répartition
-//! Tor/I2P/VPN cohérente sans la moindre édition manuelle. L'interface web lit et
-//! écrit exactement cette structure.
+//! Tor / I2P / sortie directe cohérente sans la moindre édition manuelle.
+//! L'interface web lit et écrit exactement cette structure.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -136,9 +136,13 @@ pub enum BackendKind {
     },
     /// Relaie via un proxy HTTP amont en CONNECT (proxy HTTP d'i2pd).
     HttpConnect { address: String },
-    /// Ouvre la connexion directement depuis cette machine. Sur un hôte dont
-    /// la route par défaut passe par le VPN, c'est le chemin VPN ; les sondes de
-    /// santé sont là pour vérifier que c'est bien le cas.
+    /// Ouvre la connexion directement depuis cette machine, sans intermédiaire.
+    ///
+    /// Un VPN monté sur l'hôte — OpenVPN, WireGuard — est transparent pour la
+    /// passerelle : il déplace la route par défaut du système, donc ce chemin
+    /// l'emprunte sans que rien ne soit à configurer ici. C'est précisément
+    /// pour cette raison que les sondes de santé existent : elles sont le seul
+    /// moyen de constater que ce tunnel invisible est bien monté.
     Direct,
     /// Refus systématique. Utile comme route par défaut tant qu'un tunnel est
     /// tombé : on préfère bloquer plutôt que fuiter.
@@ -171,8 +175,8 @@ impl Backend {
                 },
             },
             Backend {
-                id: "vpn".into(),
-                label: "VPN / clearnet".into(),
+                id: "direct".into(),
+                label: "Sortie directe".into(),
                 enabled: true,
                 names_only: false,
                 kind: BackendKind::Direct,
@@ -218,7 +222,7 @@ pub struct RoutingConfig {
 impl Default for RoutingConfig {
     fn default() -> Self {
         Self {
-            default_backend: "vpn".to_string(),
+            default_backend: "direct".to_string(),
             rules: vec![
                 Rule::suffix("onion", ".onion", "tor"),
                 Rule::suffix("i2p", ".i2p", "i2p"),
@@ -320,8 +324,11 @@ pub struct HealthConfig {
     pub ip_check_url: String,
     /// Site I2P servant à prouver que le tunnel est monté.
     pub i2p_check_url: String,
-    /// Alerte lorsque l'IP de sortie clearnet est celle du FAI, autrement dit
-    /// quand le trafic contourne le VPN.
+    /// Alerte lorsque l'IP de sortie du chemin direct est celle du FAI.
+    ///
+    /// Un VPN transparent ne se signale nulle part quand il tombe : la seule
+    /// façon de s'en apercevoir est de comparer l'adresse de sortie observée à
+    /// celle du lien nu.
     pub expect_vpn_exit: bool,
     /// IP publique observée sans aucun tunnel, prise comme référence de fuite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -587,7 +594,7 @@ mod tests {
     fn empty_document_yields_defaults() {
         let cfg: Config = toml::from_str("").unwrap();
         cfg.validate().unwrap();
-        assert_eq!(cfg.routing.default_backend, "vpn");
+        assert_eq!(cfg.routing.default_backend, "direct");
     }
 
     #[test]

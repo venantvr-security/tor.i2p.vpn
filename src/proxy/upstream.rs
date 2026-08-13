@@ -448,8 +448,8 @@ mod tests {
     #[tokio::test]
     async fn direct_backend_refuses_private_destinations() {
         let backend = Backend {
-            id: "vpn".into(),
-            label: "VPN".into(),
+            id: "direct".into(),
+            label: "Sortie directe".into(),
             enabled: true,
             names_only: false,
             kind: BackendKind::Direct,

@@ -1,8 +1,9 @@
 //! Sondes de sortie périodiques.
 //!
 //! Chaque sonde sort par un backend donné et rapporte ce que le monde extérieur
-//! a vu. C'est le seul moyen fiable de s'apercevoir que le VPN est tombé, ou que
-//! Tor n'est en réalité pas emprunté.
+//! a vu. C'est le seul moyen fiable de s'apercevoir que Tor n'est en réalité pas
+//! emprunté — ou qu'un VPN monté sur l'hôte, invisible pour la passerelle, vient
+//! de tomber sans prévenir personne.
 
 use std::collections::VecDeque;
 use std::sync::RwLock;
@@ -203,37 +204,44 @@ fn analyse(probes: &[ProbeResult], config: &Config) -> Vec<Finding> {
         }
     }
 
+    // Un VPN monté sur l'hôte est transparent : il ne prévient pas quand il
+    // tombe. Comparer l'adresse de sortie du chemin direct à celle du lien nu
+    // est le seul moyen de s'en rendre compte.
     let default_ip = exit_ip(&config.routing.default_backend);
     if config.health.expect_vpn_exit {
         match (&default_ip, &config.health.isp_ip_hint) {
             (Some(current), Some(isp)) if current == isp => findings.push(Finding {
                 severity: Severity::Critical,
                 message: format!(
-                    "le trafic clearnet sort sur {current}, soit l'adresse du lien FAI nu : \
-                     le VPN est tombé ou il est contourné"
+                    "la sortie directe débouche sur {current}, soit l'adresse du lien FAI nu : \
+                     le VPN de l'hôte est tombé, ou il n'a jamais été monté"
                 ),
             }),
             (Some(_), None) => findings.push(Finding {
                 severity: Severity::Info,
-                message: "renseignez `isp_ip_hint` pour que la passerelle sache détecter un \
-                          contournement du VPN"
+                message: "renseignez `isp_ip_hint` pour que la passerelle sache repérer un \
+                          VPN d'hôte tombé"
                     .into(),
             }),
             _ => {}
         }
     }
 
-    // Le chemin clearnet et le chemin Tor ne doivent jamais partager la même
-    // adresse de sortie.
-    if let (Some(default_exit), Some(tor_exit)) = (&default_ip, exit_ip("tor")) {
-        if *default_exit == tor_exit {
-            findings.push(Finding {
-                severity: Severity::Critical,
-                message: format!(
-                    "le backend Tor et le backend clearnet sortent tous deux sur \
-                     {default_exit} : Tor n'est pas emprunté"
-                ),
-            });
+    // Un backend anonymisant ne doit jamais partager son adresse de sortie avec
+    // le chemin direct. La comparaison porte sur la propriété `names_only`, pas
+    // sur un identifiant en dur : renommer « tor » ne doit pas la désactiver.
+    if let Some(default_exit) = &default_ip {
+        for backend in config.backends.iter().filter(|b| b.names_only && b.enabled) {
+            if exit_ip(&backend.id).as_ref() == Some(default_exit) {
+                findings.push(Finding {
+                    severity: Severity::Critical,
+                    message: format!(
+                        "le backend « {} » et la sortie directe débouchent tous deux sur \
+                         {default_exit} : le trafic n'est pas anonymisé",
+                        backend.label
+                    ),
+                });
+            }
         }
     }
 
@@ -489,25 +497,26 @@ mod tests {
         let mut config = Config::default();
         config.health.isp_ip_hint = Some("192.0.2.1".into());
         let probes = vec![
-            probe("vpn", ProbeKind::ExitIp, "203.0.113.9"),
+            probe("direct", ProbeKind::ExitIp, "203.0.113.9"),
             probe("tor", ProbeKind::ExitIp, "203.0.113.9"),
         ];
         let findings = analyse(&probes, &config);
-        assert!(findings
-            .iter()
-            .any(|f| f.severity == Severity::Critical
-                && f.message.contains("Tor n'est pas emprunté")));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.severity == Severity::Critical
+                    && f.message.contains("n'est pas anonymisé"))
+        );
     }
 
     #[test]
     fn a_clearnet_exit_matching_the_isp_ip_is_critical() {
         let mut config = Config::default();
         config.health.isp_ip_hint = Some("192.0.2.1".into());
-        let probes = vec![probe("vpn", ProbeKind::ExitIp, "192.0.2.1")];
+        let probes = vec![probe("direct", ProbeKind::ExitIp, "192.0.2.1")];
         let findings = analyse(&probes, &config);
-        assert!(findings
-            .iter()
-            .any(|f| f.severity == Severity::Critical && f.message.contains("le VPN est tombé")));
+        assert!(findings.iter().any(|f| f.severity == Severity::Critical
+            && f.message.contains("le VPN de l'hôte est tombé")));
     }
 
     #[test]
@@ -523,7 +532,7 @@ mod tests {
         let mut config = Config::default();
         config.health.isp_ip_hint = Some("192.0.2.1".into());
         let probes = vec![
-            probe("vpn", ProbeKind::ExitIp, "203.0.113.9"),
+            probe("direct", ProbeKind::ExitIp, "203.0.113.9"),
             probe("tor", ProbeKind::ExitIp, "198.51.100.2"),
             probe("tor", ProbeKind::TorConfirmation, "true"),
         ];

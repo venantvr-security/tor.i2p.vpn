@@ -3,14 +3,19 @@
 //! Les règles sont évaluées de haut en bas, la première correspondance
 //! l'emporte. Avec les valeurs par défaut livrées, cela signifie que `*.onion`
 //! part vers Tor, `*.i2p` vers I2P, et que tout le reste retombe sur le backend
-//! par défaut, c'est-à-dire le chemin VPN.
+//! par défaut, la sortie directe.
+//!
+//! Il n'y a volontairement pas de « backend VPN » : un VPN monté sur l'hôte
+//! déplace la route par défaut du système, donc la sortie directe l'emprunte
+//! d'elle-même. Ce sont les sondes de santé, et non le routage, qui vérifient
+//! que ce tunnel invisible tient.
 //!
 //! ```mermaid
 //! flowchart LR
 //!     C[Client SOCKS5 / HTTP] --> R{Suffixe du nom}
 //!     R -- ".onion" --> T[Backend tor<br/>SOCKS5 127.0.0.1:9050]
 //!     R -- ".i2p" --> I[Backend i2p<br/>SOCKS5 127.0.0.1:4447]
-//!     R -- "sinon" --> V[Backend vpn<br/>sortie directe]
+//!     R -- "sinon" --> V[Backend direct<br/>route par défaut de l'hôte]
 //!     R -- "IP privée" --> X[Refus]
 //! ```
 
@@ -367,7 +372,7 @@ mod tests {
     fn clearnet_falls_through_to_the_default_backend() {
         let (router, backends) = router();
         let decision = router.route(&Target::new("example.com", 443), &backends);
-        assert_eq!(decision.backend_id, "vpn");
+        assert_eq!(decision.backend_id, "direct");
         assert!(decision.matched_rule.is_none());
         assert_eq!(decision.verdict, Verdict::Allow);
     }
@@ -438,7 +443,7 @@ mod tests {
             router
                 .route(&Target::new("onion.example.com", 443), &backends)
                 .backend_id,
-            "vpn"
+            "direct"
         );
     }
 
@@ -479,7 +484,7 @@ mod tests {
             router
                 .route(&Target::new("x.onion", 80), &cfg.backends)
                 .backend_id,
-            "vpn"
+            "direct"
         );
     }
 
@@ -508,7 +513,7 @@ mod tests {
             router
                 .route(&Target::new("duckduckgo.com.evil.net", 443), &cfg.backends)
                 .backend_id,
-            "vpn"
+            "direct"
         );
     }
 

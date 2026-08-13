@@ -4,6 +4,9 @@
 # fait que leur transmettre le trafic. C'est pourquoi il utilise le réseau de
 # l'hôte, seul moyen simple d'atteindre 127.0.0.1:9050 et 127.0.0.1:4447.
 #
+# Un VPN éventuel se monte sur l'hôte, pas ici : il déplace la route par défaut
+# du système, et la sortie directe de la passerelle l'emprunte d'elle-même.
+#
 # Une variante en réseau bridge est fournie plus bas si vous préférez un
 # conteneur isolé avec des ports publiés.
 
@@ -14,8 +17,8 @@ services:
     restart: unless-stopped
 
     # Le réseau de l'hôte donne accès aux proxys locaux de Tor et d'I2P, et
-    # permet aux sondes de santé de refléter la vraie route de sortie (VPN
-    # compris). Les ports 8080, 1080 et 8118 sont alors ouverts tels quels.
+    # permet aux sondes de santé de refléter la vraie route de sortie, tunnel
+    # VPN compris. Les ports 8080, 1080 et 8118 sont alors ouverts tels quels.
     network_mode: host
 
     environment:
@@ -83,25 +86,27 @@ x-casaos:
   index: /
   icon: https://raw.githubusercontent.com/venantvr-security/tor.i2p.vpn/main/web/public/icon.png
   tagline:
-    fr_fr: Proxy multi-protocole Tor, I2P et VPN
-    en_us: Multi-protocol Tor, I2P and VPN proxy
+    fr_fr: Passerelle proxy vers Tor et I2P
+    en_us: Tor and I2P proxy gateway
   title:
-    fr_fr: Passerelle Tor / I2P / VPN
-    en_us: Tor / I2P / VPN Gateway
+    fr_fr: Passerelle Tor / I2P
+    en_us: Tor / I2P Gateway
   description:
     fr_fr: >-
       Un unique proxy SOCKS5 et HTTP pour tout le réseau local, qui aiguille le
       trafic selon le nom de domaine demandé : les adresses .onion partent vers
-      Tor, les .i2p vers I2P, et le reste emprunte le VPN. L'interface web
-      permet de configurer les règles de routage et de surveiller le débit, les
+      Tor, les .i2p vers I2P, le reste sort directement. L'interface web permet
+      de configurer les règles de routage et de surveiller le débit, les
       circuits Tor et les fuites éventuelles. Tor et I2P doivent être installés
-      sur la machine hôte.
+      sur la machine hôte ; un VPN éventuel s'y monte aussi, la passerelle
+      emprunte alors sa route sans rien avoir à configurer.
     en_us: >-
       A single SOCKS5 and HTTP proxy for the whole LAN that routes traffic by
-      hostname: .onion goes to Tor, .i2p goes to I2P, everything else takes the
-      VPN. The web interface configures the routing rules and monitors
+      hostname: .onion goes to Tor, .i2p goes to I2P, everything else egresses
+      directly. The web interface configures the routing rules and monitors
       throughput, Tor circuits and possible leaks. Tor and I2P are expected to
-      be installed on the host.
+      be installed on the host, and so is any VPN: the gateway then follows its
+      route with nothing to configure.
   tips:
     before_install:
       fr_fr: >-

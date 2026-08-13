@@ -102,9 +102,11 @@ const httpBind = bindField('http_bind')
       <h2>Sorties</h2>
       <p class="hint">
         Un backend <em>sortie directe</em> emprunte la route par défaut de la
-        machine, donc le VPN lorsque celui-ci est monté. Un backend
-        <em>blocage</em> refuse tout : c'est la bonne valeur par défaut si vous
-        préférez couper plutôt que fuiter.
+        machine. Un VPN monté sur l'hôte, OpenVPN comme WireGuard, est
+        transparent ici : il déplace cette route par défaut, donc la sortie
+        directe l'emprunte sans rien avoir à déclarer. Un backend
+        <em>blocage</em> refuse tout : à mettre en backend par défaut si vous
+        préférez couper le clearnet plutôt que risquer une fuite.
       </p>
 
       <div class="backends">

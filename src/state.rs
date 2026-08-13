@@ -174,7 +174,7 @@ mod tests {
                     &state.config().backends
                 )
                 .backend_id,
-            "vpn"
+            "direct"
         );
     }
 
@@ -184,7 +184,7 @@ mod tests {
         let mut config = Config::default();
         config.routing.default_backend = "ghost".into();
         assert!(state.apply_config(config).is_err());
-        assert_eq!(state.config().routing.default_backend, "vpn");
+        assert_eq!(state.config().routing.default_backend, "direct");
     }
 
     #[test]

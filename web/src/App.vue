@@ -34,7 +34,7 @@ async function signOut() {
     <aside class="sidebar">
       <div class="brand">
         <strong>Passerelle</strong>
-        <span>Tor · I2P · VPN</span>
+        <span>Tor · I2P</span>
       </div>
 
       <nav class="nav">

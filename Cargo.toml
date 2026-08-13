@@ -3,7 +3,7 @@ name = "tiv-gateway"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
-description = "Multi-protocol proxy gateway (Tor / I2P / VPN) with web configuration and monitoring"
+description = "Tor and I2P proxy gateway with web configuration and monitoring"
 license = "MIT"
 repository = "https://github.com/venantvr-security/tor.i2p.vpn"
 

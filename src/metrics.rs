@@ -354,7 +354,7 @@ mod tests {
         tor.connections_total.fetch_add(3, Ordering::Relaxed);
         tor.bytes_up.fetch_add(1_000, Ordering::Relaxed);
         metrics
-            .backend("vpn")
+            .backend("direct")
             .bytes_down
             .fetch_add(500, Ordering::Relaxed);
         metrics.observe_connect("tor", 120);
@@ -392,7 +392,7 @@ mod tests {
             client: "127.0.0.1:1".into(),
             target: "example.com:443".into(),
             protocol: "socks5",
-            backend: Some("vpn".into()),
+            backend: Some("direct".into()),
             rule: None,
             status,
             bytes_up: 0,

@@ -1,8 +1,11 @@
 # Conventions du dépôt
 
-Passerelle proxy multi-protocole (Tor / I2P / VPN) écrite en Rust, avec une
-interface web Vue 3, destinée à tourner en conteneur Docker sous CasaOS sur un
-Raspberry Pi.
+Passerelle proxy vers Tor et I2P écrite en Rust, avec une interface web Vue 3,
+destinée à tourner en conteneur Docker sous CasaOS sur un Raspberry Pi.
+
+Il n'existe pas de « backend VPN » : un VPN monté sur l'hôte est transparent
+pour la passerelle, puisqu'il déplace la route par défaut du système. Ce sont
+les sondes de santé, et non le routage, qui vérifient qu'il tient.
 
 ## Langue
 

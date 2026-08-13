@@ -1,9 +1,14 @@
-//! tiv-gateway — proxy multi-protocole vers Tor, I2P et un chemin VPN/clearnet,
-//! avec une interface web de configuration et de supervision.
+//! tiv-gateway — passerelle proxy vers Tor et I2P, avec une interface web de
+//! configuration et de supervision.
 //!
 //! Tor et I2P sont supposés déjà installés et démarrés sur la machine hôte ;
 //! ce processus se contente de leur relayer le trafic et de rendre compte de ce
 //! qu'il observe.
+//!
+//! Ce qui ne relève ni de Tor ni d'I2P part en sortie directe. Un VPN installé
+//! sur l'hôte est transparent à ce niveau : il déplace la route par défaut du
+//! système, donc la sortie directe l'emprunte sans que rien ne soit à déclarer
+//! ici. Seules les sondes de santé peuvent constater qu'il tient toujours.
 
 mod auth;
 mod config;
@@ -87,9 +92,8 @@ async fn main() -> Result<()> {
 /// comme en émulation.
 ///
 /// Cet appel est indispensable *avant* toute construction de client HTTP :
-/// reqwest panique sinon, et le profil de production compile avec
-/// `panic = "abort"`. On le rend donc idempotent et appelable depuis les sondes
-/// elles-mêmes, plutôt que de dépendre de l'ordre d'initialisation.
+/// reqwest panique sinon. On le rend donc idempotent et appelable depuis les
+/// sondes elles-mêmes, plutôt que de dépendre de l'ordre d'initialisation.
 pub fn install_crypto_provider() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {

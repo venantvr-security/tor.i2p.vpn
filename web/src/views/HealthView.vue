@@ -70,8 +70,9 @@ const worst = computed(() => {
       <h1>Santé</h1>
       <p>
         Chaque sonde sort par un backend donné et rapporte ce que le monde
-        extérieur a vu. C'est le seul moyen fiable de détecter un VPN tombé ou un
-        trafic qui ne passe pas réellement par Tor.
+        extérieur a vu. C'est le seul moyen fiable de repérer un trafic qui ne
+        passe pas réellement par Tor — ou un VPN d'hôte tombé, puisque celui-ci
+        est transparent et ne prévient personne.
       </p>
     </div>
     <button class="primary" :disabled="running" @click="runNow">
@@ -197,7 +198,7 @@ const worst = computed(() => {
 
       <label class="check spaced">
         <input v-model="config.health.expect_vpn_exit" type="checkbox" />
-        Alerter si le trafic clearnet ne passe pas par le VPN
+        Alerter si la sortie directe ne passe pas par un VPN
       </label>
 
       <label class="field spaced narrow">
@@ -206,8 +207,9 @@ const worst = computed(() => {
       </label>
       <p class="hint spaced">
         Renseignez ici l'adresse publique observée <em>sans</em> VPN. La sonde la
-        compare à l'IP de sortie du chemin clearnet : si les deux coïncident, le VPN
-        est tombé ou il est contourné.
+        compare à l'IP de sortie directe : si les deux coïncident, le VPN de
+        l'hôte est tombé, ou il n'a jamais été monté. Laissez vide si vous
+        n'utilisez pas de VPN.
       </p>
     </div>
 

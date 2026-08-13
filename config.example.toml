@@ -62,13 +62,14 @@ kind = "socks5"
 address = "127.0.0.1:4447"
 
 [[backends]]
-id = "vpn"
-label = "VPN / clearnet"
+id = "direct"
+label = "Sortie directe"
 enabled = true
 names_only = false
-# Sortie directe : la connexion emprunte la route par défaut de la machine,
-# donc le VPN dès lors que celui-ci est monté. Les sondes de santé vérifient
-# que c'est bien le cas.
+# La connexion part de la machine sans intermédiaire. Un VPN monté sur l'hôte
+# est transparent ici : OpenVPN ou WireGuard déplacent la route par défaut du
+# système, donc ce chemin l'emprunte sans qu'il y ait rien à déclarer. Seules
+# les sondes de santé peuvent constater que ce tunnel invisible tient.
 kind = "direct"
 
 # Sortie de secours qui refuse tout. Mettez-la en backend par défaut si vous
@@ -82,8 +83,9 @@ kind = "direct"
 # --- Routage -----------------------------------------------------------------
 
 [routing]
-# Emprunté par tout ce qui ne correspond à aucune règle.
-default_backend = "vpn"
+# Emprunté par tout ce qui ne correspond à aucune règle. Mettez « blocage » si
+# vous voulez une passerelle strictement Tor et I2P, qui coupe le reste.
+default_backend = "direct"
 
 # Refuse de relayer vers une destination loopback, RFC 1918 ou lien-local :
 # sans cela, un client du réseau local pourrait se servir de la passerelle pour
@@ -147,9 +149,10 @@ tor_check_url = "https://check.torproject.org/api/ip"
 ip_check_url = "https://api.ipify.org?format=json"
 i2p_check_url = "http://stats.i2p/"
 
-# Alerte lorsque le trafic clearnet ne passe pas par le VPN. Renseignez
-# `isp_ip_hint` avec l'adresse publique observée sans VPN : si la sortie
-# clearnet lui devient identique, le tunnel est tombé ou il est contourné.
+# Alerte lorsque la sortie directe ne passe plus par un VPN. Renseignez
+# `isp_ip_hint` avec l'adresse publique observée sans VPN : si la sortie directe
+# lui devient identique, le tunnel de l'hôte est tombé. Laissez `expect_vpn_exit`
+# à false si vous n'utilisez pas de VPN.
 expect_vpn_exit = true
 # isp_ip_hint = "203.0.113.7"
 
