@@ -11,7 +11,7 @@
 [server]
 # Interface d'administration et son API. Changer cette valeur impose un
 # redémarrage du conteneur.
-admin_bind = "0.0.0.0:8080"
+admin_bind = "0.0.0.0:8090"
 
 [proxy]
 # Écoutes proposées aux clients du réseau local. Retirez une ligne pour

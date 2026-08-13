@@ -18,7 +18,7 @@ services:
 
     # Le réseau de l'hôte donne accès aux proxys locaux de Tor et d'I2P, et
     # permet aux sondes de santé de refléter la vraie route de sortie, tunnel
-    # VPN compris. Les ports 8080, 1080 et 8118 sont alors ouverts tels quels.
+    # VPN compris. Les ports 8090, 1080 et 8118 sont alors ouverts tels quels.
     network_mode: host
 
     environment:
@@ -63,7 +63,7 @@ services:
   #   container_name: tiv-gateway
   #   restart: unless-stopped
   #   ports:
-  #     - '8080:8080'   # interface d'administration
+  #     - '8090:8090'   # interface d'administration
   #     - '1080:1080'   # SOCKS5
   #     - '8118:8118'   # proxy HTTP
   #   extra_hosts:
@@ -82,7 +82,7 @@ x-casaos:
   developer: venantvr-security
   category: Network
   scheme: http
-  port_map: '8080'
+  port_map: '8090'
   index: /
   icon: https://raw.githubusercontent.com/venantvr-security/tor.i2p.vpn/main/web/public/icon.png
   tagline:

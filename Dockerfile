@@ -106,10 +106,10 @@ WORKDIR /data
 ENV TIV_CONFIG=/data/config.toml \
     TIV_LOG=info
 
-# 8080 interface d'administration · 1080 SOCKS5 · 8118 proxy HTTP
-EXPOSE 8080 1080 8118
+# 8090 interface d'administration · 1080 SOCKS5 · 8118 proxy HTTP
+EXPOSE 8090 1080 8118
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS --noproxy '*' http://127.0.0.1:8080/api/session || exit 1
+    CMD curl -fsS --noproxy '*' http://127.0.0.1:8090/api/session || exit 1
 
 ENTRYPOINT ["/usr/local/bin/tiv-gateway"]
