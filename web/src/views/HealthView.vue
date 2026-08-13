@@ -71,8 +71,8 @@ const worst = computed(() => {
       <p>
         Chaque sonde sort par un backend donné et rapporte ce que le monde
         extérieur a vu. C'est le seul moyen fiable de repérer un trafic qui ne
-        passe pas réellement par Tor — ou un VPN d'hôte tombé, puisque celui-ci
-        est transparent et ne prévient personne.
+        passe pas réellement par Tor — ou un tunnel tombé sur la machine, puisque
+        celui-ci est transparent et ne prévient personne.
       </p>
     </div>
     <button class="primary" :disabled="running" @click="runNow">
@@ -196,20 +196,20 @@ const worst = computed(() => {
         </label>
       </div>
 
-      <label class="check spaced">
-        <input v-model="config.health.expect_vpn_exit" type="checkbox" />
-        Alerter si la sortie directe ne passe pas par un VPN
-      </label>
-
       <label class="field spaced narrow">
-        IP publique de référence du FAI
-        <input v-model="config.health.isp_ip_hint" type="text" class="mono" placeholder="203.0.113.7" />
+        Adresse de sortie anormale
+        <input
+          v-model="config.health.unexpected_exit_ip"
+          type="text"
+          class="mono"
+          placeholder="203.0.113.7"
+        />
       </label>
       <p class="hint spaced">
-        Renseignez ici l'adresse publique observée <em>sans</em> VPN. La sonde la
-        compare à l'IP de sortie directe : si les deux coïncident, le VPN de
-        l'hôte est tombé, ou il n'a jamais été monté. Laissez vide si vous
-        n'utilisez pas de VPN.
+        L'adresse publique de votre lien nu, relevée sans aucun tunnel. Si la
+        sortie directe se met à déboucher dessus alors qu'un tunnel est censé
+        être monté sur la machine, c'est qu'il est tombé — rien d'autre ne vous
+        le dira. Laissez vide pour désactiver cette vérification.
       </p>
     </div>
 

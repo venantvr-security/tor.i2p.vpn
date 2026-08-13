@@ -11,17 +11,12 @@ pensé pour un Raspberry Pi sous CasaOS.
 > **Prérequis** : Tor et I2P sont installés et démarrés **sur la machine hôte**.
 > La passerelle ne les embarque pas, elle leur transmet le trafic.
 
-### Et le VPN ?
-
-Il n'y a délibérément **pas de backend VPN**, parce qu'un VPN n'est pas une
-destination vers laquelle router. OpenVPN ou WireGuard montés sur l'hôte
-déplacent la route par défaut du système : la sortie directe l'emprunte alors
-d'elle-même, sans que la passerelle ait à le savoir ni à le configurer.
-
-C'est justement ce qui rend ce VPN dangereux quand il tombe : rien ne le
-signale, et le trafic repart en clair par le lien du FAI. La passerelle traite
-donc le problème là où il se pose — dans les [sondes de santé](#garde-fous),
-qui comparent l'adresse de sortie observée à celle du lien nu.
+Trois issues possibles, et rien d'autre à déclarer : **Tor**, **I2P**, ou la
+**sortie normale** de la machine. Un tunnel monté sur l'hôte — OpenVPN,
+WireGuard — n'apparaît nulle part dans la configuration : il déplace la route
+par défaut du système, donc la sortie directe l'emprunte d'elle-même. Comme rien
+ne signale sa chute, ce sont les [sondes de santé](#garde-fous) qui la
+détectent.
 
 ## Ce que ça fait
 
@@ -237,10 +232,10 @@ plutôt que de laisser fuiter.
   par défaut pour une passerelle strictement Tor et I2P, qui coupe le reste
   plutôt que de risquer une fuite pendant qu'un tunnel est tombé.
 - **Sondes de sortie.** Elles comparent l'IP publique vue par chaque backend. Un
-  VPN monté sur l'hôte est invisible pour la passerelle et ne signale rien quand
-  il tombe : si la sortie directe se met à déboucher sur l'IP nue du FAI, ou si
-  un backend anonymisant partage son adresse de sortie avec elle, l'alerte est
-  levée en critique.
+  tunnel monté sur l'hôte est invisible pour la passerelle et ne signale rien
+  quand il tombe : renseignez `unexpected_exit_ip` avec l'adresse de votre lien
+  nu, et l'alerte est levée en critique dès que la sortie directe y débouche.
+  Idem si un backend anonymisant partage son adresse de sortie avec elle.
 - **Administration protégée.** Mot de passe haché en Argon2id, session signée en
   HMAC dans un cookie `HttpOnly` `SameSite=Strict`, temporisation exponentielle
   après cinq échecs de connexion, comparaisons en temps constant.

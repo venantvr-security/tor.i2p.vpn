@@ -2,8 +2,8 @@
 //!
 //! Chaque sonde sort par un backend donné et rapporte ce que le monde extérieur
 //! a vu. C'est le seul moyen fiable de s'apercevoir que Tor n'est en réalité pas
-//! emprunté — ou qu'un VPN monté sur l'hôte, invisible pour la passerelle, vient
-//! de tomber sans prévenir personne.
+//! emprunté — ou qu'un tunnel monté sur l'hôte, invisible pour la passerelle,
+//! vient de tomber sans prévenir personne.
 
 use std::collections::VecDeque;
 use std::sync::RwLock;
@@ -204,26 +204,19 @@ fn analyse(probes: &[ProbeResult], config: &Config) -> Vec<Finding> {
         }
     }
 
-    // Un VPN monté sur l'hôte est transparent : il ne prévient pas quand il
-    // tombe. Comparer l'adresse de sortie du chemin direct à celle du lien nu
-    // est le seul moyen de s'en rendre compte.
+    // Un tunnel monté sur l'hôte est transparent pour la passerelle : il ne
+    // prévient pas quand il tombe. Comparer l'adresse de sortie directe à celle
+    // du lien nu est le seul moyen de s'en rendre compte.
     let default_ip = exit_ip(&config.routing.default_backend);
-    if config.health.expect_vpn_exit {
-        match (&default_ip, &config.health.isp_ip_hint) {
-            (Some(current), Some(isp)) if current == isp => findings.push(Finding {
+    if let (Some(current), Some(bare)) = (&default_ip, &config.health.unexpected_exit_ip) {
+        if current == bare {
+            findings.push(Finding {
                 severity: Severity::Critical,
                 message: format!(
-                    "la sortie directe débouche sur {current}, soit l'adresse du lien FAI nu : \
-                     le VPN de l'hôte est tombé, ou il n'a jamais été monté"
+                    "la sortie directe débouche sur {current}, l'adresse du lien nu : \
+                     le tunnel attendu sur l'hôte n'est plus là"
                 ),
-            }),
-            (Some(_), None) => findings.push(Finding {
-                severity: Severity::Info,
-                message: "renseignez `isp_ip_hint` pour que la passerelle sache repérer un \
-                          VPN d'hôte tombé"
-                    .into(),
-            }),
-            _ => {}
+            });
         }
     }
 
@@ -495,7 +488,7 @@ mod tests {
     #[test]
     fn an_identical_exit_ip_on_tor_and_clearnet_is_critical() {
         let mut config = Config::default();
-        config.health.isp_ip_hint = Some("192.0.2.1".into());
+        config.health.unexpected_exit_ip = Some("192.0.2.1".into());
         let probes = vec![
             probe("direct", ProbeKind::ExitIp, "203.0.113.9"),
             probe("tor", ProbeKind::ExitIp, "203.0.113.9"),
@@ -510,13 +503,14 @@ mod tests {
     }
 
     #[test]
-    fn a_clearnet_exit_matching_the_isp_ip_is_critical() {
+    fn a_direct_exit_matching_the_bare_link_is_critical() {
         let mut config = Config::default();
-        config.health.isp_ip_hint = Some("192.0.2.1".into());
+        config.health.unexpected_exit_ip = Some("192.0.2.1".into());
         let probes = vec![probe("direct", ProbeKind::ExitIp, "192.0.2.1")];
         let findings = analyse(&probes, &config);
         assert!(findings.iter().any(|f| f.severity == Severity::Critical
-            && f.message.contains("le VPN de l'hôte est tombé")));
+            && f.message
+                .contains("le tunnel attendu sur l'hôte n'est plus là")));
     }
 
     #[test]
@@ -530,7 +524,7 @@ mod tests {
     #[test]
     fn a_clean_run_reports_a_single_info_finding() {
         let mut config = Config::default();
-        config.health.isp_ip_hint = Some("192.0.2.1".into());
+        config.health.unexpected_exit_ip = Some("192.0.2.1".into());
         let probes = vec![
             probe("direct", ProbeKind::ExitIp, "203.0.113.9"),
             probe("tor", ProbeKind::ExitIp, "198.51.100.2"),

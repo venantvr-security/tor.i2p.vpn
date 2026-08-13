@@ -149,12 +149,12 @@ tor_check_url = "https://check.torproject.org/api/ip"
 ip_check_url = "https://api.ipify.org?format=json"
 i2p_check_url = "http://stats.i2p/"
 
-# Alerte lorsque la sortie directe ne passe plus par un VPN. Renseignez
-# `isp_ip_hint` avec l'adresse publique observée sans VPN : si la sortie directe
-# lui devient identique, le tunnel de l'hôte est tombé. Laissez `expect_vpn_exit`
-# à false si vous n'utilisez pas de VPN.
-expect_vpn_exit = true
-# isp_ip_hint = "203.0.113.7"
+# Adresse publique de votre lien nu, relevée sans aucun tunnel. Si la sortie
+# directe se met à déboucher dessus alors qu'un tunnel est censé être monté sur
+# l'hôte, c'est qu'il est tombé : rien d'autre ne le signalera, puisqu'il est
+# transparent pour la passerelle. Laissez la ligne commentée pour ne pas faire
+# cette vérification.
+# unexpected_exit_ip = "203.0.113.7"
 
 history_len = 120
 

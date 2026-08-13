@@ -324,15 +324,15 @@ pub struct HealthConfig {
     pub ip_check_url: String,
     /// Site I2P servant à prouver que le tunnel est monté.
     pub i2p_check_url: String,
-    /// Alerte lorsque l'IP de sortie du chemin direct est celle du FAI.
+    /// Adresse publique que la sortie directe ne devrait jamais exhiber.
     ///
-    /// Un VPN transparent ne se signale nulle part quand il tombe : la seule
-    /// façon de s'en apercevoir est de comparer l'adresse de sortie observée à
-    /// celle du lien nu.
-    pub expect_vpn_exit: bool,
-    /// IP publique observée sans aucun tunnel, prise comme référence de fuite.
+    /// C'est celle du lien nu, relevée sans aucun tunnel. Si la sortie directe
+    /// se met à déboucher dessus alors qu'un tunnel est censé être monté sur
+    /// l'hôte, ce tunnel est tombé — et rien d'autre ne le signalera, puisqu'il
+    /// est transparent pour la passerelle. Laissée vide, la vérification ne
+    /// s'applique pas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub isp_ip_hint: Option<String>,
+    pub unexpected_exit_ip: Option<String>,
     /// Nombre de points d'historique conservés.
     pub history_len: usize,
 }
@@ -346,8 +346,7 @@ impl Default for HealthConfig {
             tor_check_url: "https://check.torproject.org/api/ip".to_string(),
             ip_check_url: "https://api.ipify.org?format=json".to_string(),
             i2p_check_url: "http://stats.i2p/".to_string(),
-            expect_vpn_exit: true,
-            isp_ip_hint: None,
+            unexpected_exit_ip: None,
             history_len: 120,
         }
     }
