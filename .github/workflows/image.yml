@@ -3,10 +3,10 @@
 # Le paquet produit est `ghcr.io/venantvr-security/tor.i2p.vpn`, celui que
 # référence `docker-compose.yml`.
 #
-# La visibilité du paquet ne se règle pas depuis un workflow : après la toute
-# première publication, ouvrez le paquet dans l'onglet Packages de
-# l'organisation, puis « Package settings » → « Change visibility » → Public.
-# Le réglage est conservé pour toutes les publications suivantes.
+# Le paquet hérite de la visibilité du dépôt à sa création. Le dépôt étant
+# public, l'image l'est aussi et se récupère sans authentification. Depuis un
+# dépôt privé, le paquet naîtrait privé et la bascule serait manuelle, dans
+# « Package settings » → « Change visibility » : aucune API ne la pilote.
 
 name: Image de conteneur
 
@@ -128,6 +128,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Rappeler la visibilité du paquet
+      - name: Récapituler la publication
         run: |
-          echo "::notice title=Visibilité du paquet::Si c'est la première publication, rendez le paquet public depuis Packages → tor.i2p.vpn → Package settings → Change visibility."
+          echo "::notice title=Image publiée::${{ steps.metadonnees.outputs.tags }}"

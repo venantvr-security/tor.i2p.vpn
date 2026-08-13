@@ -197,11 +197,12 @@ clippy et les tests sur toutes les branches, puis construit l'interface. La
 publication, elle, n'a lieu que depuis la branche par défaut, sur un tag `v*`,
 ou à la demande depuis l'onglet Actions.
 
-> **Une action manuelle, une seule fois.** La visibilité d'un paquet ne se règle
-> pas depuis un workflow. Après la première publication, ouvrez
-> *Packages → tor.i2p.vpn → Package settings → Change visibility → Public*. Le
-> réglage vaut ensuite pour toutes les publications suivantes. Un paquet peut
-> être public même lorsque le dépôt qui le produit est privé.
+Le paquet est public : le dépôt l'étant, la visibilité a été héritée à la
+première publication, et l'image se récupère sans authentification. Si un jour
+un paquet ressortait privé — c'est le cas lorsqu'il est produit depuis un dépôt
+privé —, la bascule se fait à la main dans
+*Packages → tor.i2p.vpn → Package settings → Change visibility*, aucune API ne
+la pilotant.
 
 ### Construire l'image soi-même
 
