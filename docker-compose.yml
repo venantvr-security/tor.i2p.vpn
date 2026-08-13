@@ -10,6 +10,8 @@
 # Une variante en réseau bridge est fournie plus bas si vous préférez un
 # conteneur isolé avec des ports publiés.
 
+name: tiv-gateway
+
 services:
   tiv-gateway:
     image: ghcr.io/venantvr-security/tor.i2p.vpn:latest
