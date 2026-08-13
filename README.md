@@ -245,6 +245,35 @@ plutôt que de laisser fuiter.
 `BIND` et `UDP ASSOCIATE` ne sont volontairement pas implémentés : ils n'ont
 aucun sens pour Tor ou I2P et ouvriraient un chemin de fuite sur le clearnet.
 
+## Modèle de connexion
+
+Une connexion cliente donne une connexion amont, sans mise en commun. Ce n'est
+pas un oubli : une connexion SOCKS5 est liée à sa destination dès la poignée de
+main, si bien qu'une fois le tunnel fermé la socket n'est plus réutilisable pour
+rien. Un pool amont n'aurait donc rien à mettre en cache.
+
+Mesuré sur boucle locale, en profil release, 200 requêtes séquentielles :
+
+| chemin | par requête |
+|---|---|
+| direct, sans passerelle | 0,614 ms |
+| à travers l'écoute SOCKS5 | 0,870 ms |
+| à travers l'écoute HTTP | 0,766 ms |
+
+Le surcoût de la passerelle est donc de l'ordre de 0,2 ms par connexion, à
+comparer aux 100 ms à 2 s que coûte l'établissement d'un circuit Tor. Pré-ouvrir
+des connexions vers `127.0.0.1:9050` optimiserait deux centièmes de pour cent de
+la dépense.
+
+Côté client, en revanche, la persistance est intégralement préservée : la
+passerelle relaie des octets sans les interpréter, donc un navigateur qui ouvre
+un tunnel SOCKS5 y fait son keep-alive HTTP/1.1 ou HTTP/2 comme il l'entend, et
+un `CONNECT` reste ouvert aussi longtemps que le client le souhaite. Seule
+l'écoute HTTP en URI absolue — donc du HTTP en clair, pas HTTPS — sert une
+requête par connexion : y faire du keep-alive obligerait à analyser les corps de
+réponse pour savoir où chacune s'arrête, c'est-à-dire à poser un parseur HTTP
+complet sur le trafic, avec les risques de *request smuggling* correspondants.
+
 ## Développement
 
 ```bash

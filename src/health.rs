@@ -140,21 +140,41 @@ pub async fn run_probes(registry: &HealthRegistry, config: &Config) -> HealthRep
     let started = Instant::now();
     let health = &config.health;
 
-    let mut tasks = Vec::new();
-    for backend in config.backends.iter().filter(|b| b.enabled) {
-        if matches!(backend.kind, BackendKind::Block) {
-            continue;
-        }
-        tasks.push(probe_exit_ip(backend.clone(), health.clone()));
-    }
+    // Un seul client HTTP par backend, partagé par toutes les sondes de la
+    // campagne. Construire un client reqwest monte la configuration TLS et
+    // charge les racines de certificats : le refaire pour chaque sonde revenait
+    // à payer cinq fois ce prix, ce qui se sent sur un Raspberry Pi.
+    let clients: Vec<(Backend, Result<Client, String>)> = config
+        .backends
+        .iter()
+        .filter(|b| b.enabled && !matches!(b.kind, BackendKind::Block))
+        .map(|backend| {
+            let client = client_for(backend, health).map_err(|err| format!("{err:#}"));
+            (backend.clone(), client)
+        })
+        .collect();
 
+    let client_of = |id: &str| {
+        clients
+            .iter()
+            .find(|(backend, _)| backend.id == id)
+            .map(|(_, client)| client.clone())
+    };
+
+    let tasks = clients
+        .iter()
+        .map(|(backend, client)| probe_exit_ip(backend.id.clone(), client.clone(), health.clone()));
     let mut probes: Vec<ProbeResult> = futures_util::future::join_all(tasks).await;
 
-    if let Some(tor) = config.backend("tor").filter(|b| b.enabled) {
-        probes.push(probe_tor(tor.clone(), health.clone()).await);
+    // Ces deux sondes sont propres à un réseau : elles s'appuient donc sur les
+    // identifiants conventionnels. Renommer le backend ne fait que les taire,
+    // sans jamais fausser les vérifications de fuite, qui, elles, reposent sur
+    // les propriétés déclarées du backend.
+    if let Some(client) = client_of("tor") {
+        probes.push(probe_tor("tor".to_string(), client, health.clone()).await);
     }
-    if let Some(i2p) = config.backend("i2p").filter(|b| b.enabled) {
-        probes.push(probe_i2p(i2p.clone(), health.clone()).await);
+    if let Some(client) = client_of("i2p") {
+        probes.push(probe_i2p("i2p".to_string(), client, health.clone()).await);
     }
 
     let findings = analyse(&probes, config);
@@ -247,10 +267,14 @@ fn analyse(probes: &[ProbeResult], config: &Config) -> Vec<Finding> {
     findings
 }
 
-async fn probe_exit_ip(backend: Backend, health: HealthConfig) -> ProbeResult {
+async fn probe_exit_ip(
+    backend: String,
+    client: Result<Client, String>,
+    health: HealthConfig,
+) -> ProbeResult {
     let started = Instant::now();
     let result = async {
-        let client = client_for(&backend, &health)?;
+        let client = client.map_err(anyhow::Error::msg)?;
         let body = client
             .get(&health.ip_check_url)
             .send()
@@ -264,7 +288,7 @@ async fn probe_exit_ip(backend: Backend, health: HealthConfig) -> ProbeResult {
 
     match result {
         Ok(Some(ip)) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::ExitIp,
             ok: true,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -272,7 +296,7 @@ async fn probe_exit_ip(backend: Backend, health: HealthConfig) -> ProbeResult {
             error: None,
         },
         Ok(None) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::ExitIp,
             ok: false,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -280,7 +304,7 @@ async fn probe_exit_ip(backend: Backend, health: HealthConfig) -> ProbeResult {
             error: Some("la réponse ne contenait aucune adresse IP".into()),
         },
         Err(err) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::ExitIp,
             ok: false,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -290,10 +314,14 @@ async fn probe_exit_ip(backend: Backend, health: HealthConfig) -> ProbeResult {
     }
 }
 
-async fn probe_tor(backend: Backend, health: HealthConfig) -> ProbeResult {
+async fn probe_tor(
+    backend: String,
+    client: Result<Client, String>,
+    health: HealthConfig,
+) -> ProbeResult {
     let started = Instant::now();
     let result = async {
-        let client = client_for(&backend, &health)?;
+        let client = client.map_err(anyhow::Error::msg)?;
         let body: serde_json::Value = client
             .get(&health.tor_check_url)
             .send()
@@ -307,7 +335,7 @@ async fn probe_tor(backend: Backend, health: HealthConfig) -> ProbeResult {
 
     match result {
         Ok(Some(is_tor)) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::TorConfirmation,
             ok: true,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -315,7 +343,7 @@ async fn probe_tor(backend: Backend, health: HealthConfig) -> ProbeResult {
             error: None,
         },
         Ok(None) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::TorConfirmation,
             ok: false,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -323,7 +351,7 @@ async fn probe_tor(backend: Backend, health: HealthConfig) -> ProbeResult {
             error: Some("le service de vérification n'a pas renvoyé `IsTor`".into()),
         },
         Err(err) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::TorConfirmation,
             ok: false,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -333,10 +361,14 @@ async fn probe_tor(backend: Backend, health: HealthConfig) -> ProbeResult {
     }
 }
 
-async fn probe_i2p(backend: Backend, health: HealthConfig) -> ProbeResult {
+async fn probe_i2p(
+    backend: String,
+    client: Result<Client, String>,
+    health: HealthConfig,
+) -> ProbeResult {
     let started = Instant::now();
     let result = async {
-        let client = client_for(&backend, &health)?;
+        let client = client.map_err(anyhow::Error::msg)?;
         let status = client.get(&health.i2p_check_url).send().await?.status();
         Ok::<_, anyhow::Error>(status)
     }
@@ -344,7 +376,7 @@ async fn probe_i2p(backend: Backend, health: HealthConfig) -> ProbeResult {
 
     match result {
         Ok(status) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::I2pReachability,
             ok: status.is_success() || status.is_redirection(),
             latency_ms: started.elapsed().as_millis() as u64,
@@ -353,7 +385,7 @@ async fn probe_i2p(backend: Backend, health: HealthConfig) -> ProbeResult {
                 .then(|| format!("HTTP {status}")),
         },
         Err(err) => ProbeResult {
-            backend: backend.id,
+            backend: backend.clone(),
             kind: ProbeKind::I2pReachability,
             ok: false,
             latency_ms: started.elapsed().as_millis() as u64,
