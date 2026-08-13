@@ -180,6 +180,39 @@ Dans CasaOS, le `docker-compose.yml` s'importe tel quel depuis
 *App Store → Custom Install* : il porte les métadonnées `x-casaos` (icône,
 catégorie, port de l'interface).
 
+## Image de conteneur
+
+L'image est publiée sur le registre GitHub, pour `linux/amd64` et
+`linux/arm64` — c'est cette dernière qui tourne sur un Raspberry Pi 64 bits :
+
+```bash
+docker pull ghcr.io/venantvr-security/tor.i2p.vpn:latest
+```
+
+Étiquettes disponibles : `latest` suit la branche par défaut, `sha-xxxxxxx`
+épingle un commit, et une version posée en tag `v1.2.3` publie `1.2.3` et `1.2`.
+
+Le workflow [`image.yml`](.github/workflows/image.yml) la construit à chaque
+poussée sur `main`, à chaque tag `v*`, ou à la demande depuis l'onglet Actions.
+Il vérifie d'abord le formatage, clippy et les tests, puis construit l'interface,
+et ne publie qu'ensuite.
+
+> **Une action manuelle, une seule fois.** La visibilité d'un paquet ne se règle
+> pas depuis un workflow. Après la première publication, ouvrez
+> *Packages → tor.i2p.vpn → Package settings → Change visibility → Public*. Le
+> réglage vaut ensuite pour toutes les publications suivantes. Un paquet peut
+> être public même lorsque le dépôt qui le produit est privé.
+
+### Construire l'image soi-même
+
+```bash
+docker buildx build --platform linux/arm64 -t tiv-gateway:local .
+```
+
+La compilation Rust tourne sur l'architecture de votre machine et produit du
+code pour l'architecture cible : un build ARM64 depuis un PC prend une minute et
+demie au lieu de la demi-heure qu'imposerait l'émulation du compilateur.
+
 ### Pourquoi le réseau de l'hôte
 
 ```mermaid
