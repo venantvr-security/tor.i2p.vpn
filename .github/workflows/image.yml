@@ -12,7 +12,7 @@ name: Image de conteneur
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     tags: ['v*']
   workflow_dispatch:
 
@@ -72,6 +72,13 @@ jobs:
   publication:
     name: Publication de l'image
     needs: [verification, interface]
+    # Les vérifications tournent sur toutes les branches, la publication non :
+    # elle est réservée à la branche par défaut et aux tags de version. La
+    # condition porte sur la branche par défaut réelle, quel que soit son nom.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/')
+      || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       contents: read

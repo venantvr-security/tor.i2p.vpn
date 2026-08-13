@@ -192,10 +192,10 @@ docker pull ghcr.io/venantvr-security/tor.i2p.vpn:latest
 Étiquettes disponibles : `latest` suit la branche par défaut, `sha-xxxxxxx`
 épingle un commit, et une version posée en tag `v1.2.3` publie `1.2.3` et `1.2`.
 
-Le workflow [`image.yml`](.github/workflows/image.yml) la construit à chaque
-poussée sur `main`, à chaque tag `v*`, ou à la demande depuis l'onglet Actions.
-Il vérifie d'abord le formatage, clippy et les tests, puis construit l'interface,
-et ne publie qu'ensuite.
+Le workflow [`image.yml`](.github/workflows/image.yml) vérifie le formatage,
+clippy et les tests sur toutes les branches, puis construit l'interface. La
+publication, elle, n'a lieu que depuis la branche par défaut, sur un tag `v*`,
+ou à la demande depuis l'onglet Actions.
 
 > **Une action manuelle, une seule fois.** La visibilité d'un paquet ne se règle
 > pas depuis un workflow. Après la première publication, ouvrez
