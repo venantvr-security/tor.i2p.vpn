@@ -58,7 +58,9 @@ impl BackendCounters {
             bytes_down: self.bytes_down.load(Ordering::Relaxed),
             errors: self.errors.load(Ordering::Relaxed),
             denied: self.denied.load(Ordering::Relaxed),
-            avg_connect_ms: if count == 0 { 0 } else { sum / count },
+            // Aucune connexion mesurée : la moyenne vaut zéro plutôt que de
+            // diviser par zéro.
+            avg_connect_ms: sum.checked_div(count).unwrap_or(0),
             max_connect_ms: self.connect_latency_max_ms.load(Ordering::Relaxed),
         }
     }

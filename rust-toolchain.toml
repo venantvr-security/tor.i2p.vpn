@@ -1,0 +1,11 @@
+# Toolchain épinglée, utilisée à l'identique en local, dans l'intégration
+# continue et dans l'image Docker.
+#
+# Sans cet épinglage, le CI flottait sur `stable` : une nouvelle version de Rust
+# apportant un lint clippy inédit faisait échouer une poussée sans rapport, et
+# « ça passe chez moi » ne voulait plus rien dire. La montée de version devient
+# ainsi un changement délibéré, visible dans l'historique.
+[toolchain]
+channel = "1.97"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

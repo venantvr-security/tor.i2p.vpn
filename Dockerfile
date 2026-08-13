@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# Image de la passerelle Tor / I2P / VPN.
+# Image de la passerelle Tor / I2P.
 #
 # Trois étapes : le bundle Vue, le binaire Rust, puis une image d'exécution
 # minimale. Le front est construit sur l'architecture de la machine de build
@@ -20,7 +20,7 @@ RUN npm run build
 # Le compilateur tourne sur l'architecture de la machine de build et produit du
 # code pour l'architecture cible. Émuler tout un build Rust sous QEMU coûterait
 # une demi-heure là où la compilation croisée prend une minute et demie.
-FROM --platform=$BUILDPLATFORM rust:1.94-slim-bookworm AS build
+FROM --platform=$BUILDPLATFORM rust:1.97-slim-bookworm AS build
 
 ARG TARGETARCH
 ARG BUILDARCH
