@@ -183,7 +183,7 @@ function statusColor(state) {
           <tr v-for="entry in recent" :key="entry.id">
             <td class="mono">{{ clock(entry.started_ms) }}</td>
             <td class="mono">{{ entry.client }}</td>
-            <td class="mono target">{{ entry.target }}</td>
+            <td class="mono"><span class="cell-scroll target">{{ entry.target }}</span></td>
             <td>{{ entry.protocol }}</td>
             <td>
               <span v-if="entry.backend" class="cell-label">
@@ -240,12 +240,8 @@ function statusColor(state) {
   gap: 7px;
 }
 
+/* Une destination longue défile dans sa cellule au lieu d'être tronquée. */
 .target {
   max-width: 28ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
 }
 </style>

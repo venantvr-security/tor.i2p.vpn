@@ -105,7 +105,7 @@ async function probe() {
           </thead>
           <tbody>
             <tr v-for="(rule, index) in rules" :key="index">
-              <td class="order">
+              <td class="order" data-label="Ordre">
                 <button
                   class="tiny"
                   :disabled="index === 0"
@@ -123,16 +123,16 @@ async function probe() {
                   ↓
                 </button>
               </td>
-              <td><input v-model="rule.id" type="text" class="narrow" /></td>
-              <td>
+              <td data-label="Identifiant"><input v-model="rule.id" type="text" class="narrow" /></td>
+              <td data-label="Type">
                 <select v-model="rule.match_type">
                   <option v-for="(label, value) in MATCH_LABELS" :key="value" :value="value">
                     {{ label }}
                   </option>
                 </select>
               </td>
-              <td><input v-model="rule.pattern" type="text" class="mono wide" /></td>
-              <td>
+              <td data-label="Motif"><input v-model="rule.pattern" type="text" class="mono wide" /></td>
+              <td data-label="Backend">
                 <span class="cell-label">
                   <span class="swatch" :style="{ background: colorFor(rule.backend) }" />
                   <select v-model="rule.backend">
@@ -142,8 +142,8 @@ async function probe() {
                   </select>
                 </span>
               </td>
-              <td><input v-model="rule.enabled" type="checkbox" /></td>
-              <td>
+              <td class="toggle" data-label="Active"><input v-model="rule.enabled" type="checkbox" /></td>
+              <td class="row-actions">
                 <button class="tiny danger" @click="removeRule(index)">Supprimer</button>
               </td>
             </tr>
@@ -250,6 +250,74 @@ td select,
 td input[type='text'] {
   padding: 4px 7px;
   font-size: 13px;
+}
+
+/* Sur écran étroit, chaque règle devient une fiche empilée : éditer un
+   formulaire dans un tableau qui défile latéralement était impraticable. */
+@media (max-width: 720px) {
+  .table-scroll {
+    overflow-x: visible;
+  }
+
+  table,
+  tbody,
+  tr,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody tr {
+    border: 1px solid var(--grid);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: var(--surface-raised);
+  }
+
+  td {
+    border-bottom: none;
+    padding: 6px 0;
+  }
+
+  td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+  }
+
+  td.toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  td.toggle::before {
+    margin-bottom: 0;
+  }
+
+  .order {
+    padding-top: 6px;
+  }
+
+  .row-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .narrow,
+  .wide {
+    min-width: 0;
+  }
 }
 
 .cell-label {

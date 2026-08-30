@@ -187,8 +187,8 @@ const remplissage = computed(() => {
                 {{ RESEAUX[entry.reseau].label }}
               </span>
             </td>
-            <td class="mono url">{{ entry.url }}</td>
-            <td>{{ entry.titre ?? '—' }}</td>
+            <td class="mono"><span class="cell-scroll url">{{ entry.url }}</span></td>
+            <td><span class="cell-scroll titre">{{ entry.titre ?? '—' }}</span></td>
             <td class="code">
               <span class="cell-label">
                 <span class="swatch" :style="{ background: codeColor(entry.code) }" />
@@ -348,9 +348,24 @@ const remplissage = computed(() => {
   white-space: nowrap;
 }
 
+/* Les URL font parfois des centaines de caractères : chacune reste sur sa
+   ligne et défile dans sa propre cellule, le tableau garde sa hauteur. */
 .url {
   max-width: 46ch;
-  overflow-wrap: anywhere;
+}
+
+.titre {
+  max-width: 32ch;
+}
+
+@media (max-width: 860px) {
+  .url {
+    max-width: 32ch;
+  }
+
+  .titre {
+    max-width: 22ch;
+  }
 }
 
 /* Le journal peut compter des milliers de lignes : il défile dans son propre

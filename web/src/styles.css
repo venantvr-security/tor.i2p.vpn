@@ -282,12 +282,15 @@ a {
   gap: 12px;
 }
 
+/* `min(…, 100%)` : sous la largeur minimale, la colonne prend toute la place
+   au lieu de déborder du conteneur — c'est ce qui faisait défiler la page
+   horizontalement sur mobile. */
 .grid.cols-4 {
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(168px, 100%), 1fr));
 }
 
 .grid.cols-2 {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
 }
 
 /* --- Formulaires -------------------------------------------------------- */
@@ -426,6 +429,17 @@ th.num {
 .mono {
   font-family: var(--mono);
   font-size: 12.5px;
+}
+
+/* Valeur longue en cellule (URL, titre, destination) : une seule ligne bornée
+   qui défile sur elle-même, au lieu de replier la cellule sur dix lignes ou
+   d'étirer le tableau. */
+.cell-scroll {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  vertical-align: middle;
 }
 
 .muted {

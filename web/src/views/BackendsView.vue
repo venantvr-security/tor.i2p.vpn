@@ -243,7 +243,7 @@ const httpBind = bindField('http_bind')
 .backends {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
 }
 
 .backend {

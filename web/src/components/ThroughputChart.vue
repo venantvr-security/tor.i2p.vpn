@@ -17,9 +17,6 @@ const props = defineProps({
   height: { type: Number, default: 190 },
 })
 
-// La marge gauche doit loger une graduation complète du type « 1.9 Mo/s », et
-// la marge droite l'étiquette directe de fin de série.
-const PADDING = { top: 16, right: 74, bottom: 22, left: 70 }
 /// Écart vertical minimal entre deux étiquettes directes avant décalage.
 const LABEL_GAP = 13
 
@@ -28,11 +25,20 @@ const width = ref(720)
 const hoverIndex = ref(null)
 let observer = null
 
+// La marge gauche doit loger une graduation complète du type « 1.9 Mo/s », et
+// la marge droite l'étiquette directe de fin de série. Sur écran étroit, les
+// deux se resserrent pour laisser la place au tracé lui-même.
+const PADDING = computed(() =>
+  width.value < 520
+    ? { top: 16, right: 58, bottom: 22, left: 52 }
+    : { top: 16, right: 74, bottom: 22, left: 70 },
+)
+
 onMounted(() => {
   if (!wrapper.value) return
   observer = new ResizeObserver((entries) => {
     const measured = entries[0]?.contentRect?.width
-    if (measured) width.value = Math.max(320, measured)
+    if (measured) width.value = Math.max(260, measured)
   })
   observer.observe(wrapper.value)
 })
@@ -48,8 +54,8 @@ const points = computed(() => props.samples ?? [])
 const hasData = computed(() => points.value.length >= 2)
 
 const plot = computed(() => ({
-  width: Math.max(10, width.value - PADDING.left - PADDING.right),
-  height: Math.max(10, props.height - PADDING.top - PADDING.bottom),
+  width: Math.max(10, width.value - PADDING.value.left - PADDING.value.right),
+  height: Math.max(10, props.height - PADDING.value.top - PADDING.value.bottom),
 }))
 
 /** Borne haute de l'axe, arrondie pour donner des graduations lisibles. */
@@ -65,12 +71,12 @@ const maxValue = computed(() => {
 
 function x(index) {
   const span = Math.max(1, points.value.length - 1)
-  return PADDING.left + (index / span) * plot.value.width
+  return PADDING.value.left + (index / span) * plot.value.width
 }
 
 function y(value) {
   const ratio = Math.min(1, (value ?? 0) / maxValue.value)
-  return PADDING.top + plot.value.height - ratio * plot.value.height
+  return PADDING.value.top + plot.value.height - ratio * plot.value.height
 }
 
 function linePath(key) {
@@ -81,14 +87,14 @@ function linePath(key) {
 
 function areaPath(key) {
   if (!hasData.value) return ''
-  const base = PADDING.top + plot.value.height
+  const base = PADDING.value.top + plot.value.height
   const last = points.value.length - 1
   return `${linePath(key)} L${x(last).toFixed(1)},${base} L${x(0).toFixed(1)},${base} Z`
 }
 
 const ticks = computed(() => [0, 0.5, 1].map((ratio) => ({
   value: maxValue.value * ratio,
-  y: PADDING.top + plot.value.height - ratio * plot.value.height,
+  y: PADDING.value.top + plot.value.height - ratio * plot.value.height,
 })))
 
 const lastSample = computed(() => points.value[points.value.length - 1] ?? null)
@@ -126,7 +132,7 @@ const focused = computed(() => {
 function onMove(event) {
   if (!hasData.value) return
   const rect = event.currentTarget.getBoundingClientRect()
-  const offset = event.clientX - rect.left - PADDING.left
+  const offset = event.clientX - rect.left - PADDING.value.left
   const span = Math.max(1, points.value.length - 1)
   const index = Math.round((offset / plot.value.width) * span)
   hoverIndex.value = Math.min(points.value.length - 1, Math.max(0, index))
@@ -144,7 +150,7 @@ const tooltipStyle = computed(() => {
   return {
     left: `${flip ? anchor - 12 : anchor + 12}px`,
     transform: flip ? 'translateX(-100%)' : 'none',
-    top: `${PADDING.top}px`,
+    top: `${PADDING.value.top}px`,
   }
 })
 </script>
