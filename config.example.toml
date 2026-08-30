@@ -177,6 +177,24 @@ capture_titles = true
 # remonte en tête au lieu d'être dupliquée.
 max_entries = 500
 
+# --- Interception TLS (mode à part) ------------------------------------------
+
+[mitm]
+# Interception « man-in-the-middle » des seuls hôtes listés : la passerelle
+# termine leur TLS avec un certificat forgé par une CA locale, rouvre un tunnel
+# vers la vraie destination, et journalise le HTTP en clair qui circule entre
+# les deux (URL complètes, code, titre). Elle inverse la promesse de protection
+# de la passerelle : désactivée par défaut, elle ne vise qu'une liste blanche.
+#
+# La CA se télécharge et s'installe depuis la page Interception ; sa clé privée
+# (`mitm-ca-key.pem`) reste dans ce volume et n'est jamais exposée par l'API.
+enabled = false
+
+# Hôtes à intercepter. Chaque entrée vaut un nom exact (`forum.onion`), un
+# suffixe si elle commence par un point (`.exemple.i2p`), ou un joker de
+# sous-domaines avec `*.` (`*.exemple.com`). Seul le port 443 est intercepté.
+hosts = []
+
 # --- Administration ----------------------------------------------------------
 
 [auth]

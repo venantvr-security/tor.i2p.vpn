@@ -15,6 +15,7 @@ mod catalogue;
 mod config;
 mod health;
 mod metrics;
+mod mitm;
 mod proxy;
 mod routing;
 mod state;
@@ -56,7 +57,8 @@ async fn main() -> Result<()> {
 
     let admin_bind = config.server.admin_bind.clone();
     let setup_required = config.auth.password_hash.is_none();
-    let state = Arc::new(AppState::new(config, path));
+    let state =
+        Arc::new(AppState::new(config, path).context("initialisation de l'état applicatif")?);
 
     tokio::spawn(sampler(Arc::clone(&state)));
     tokio::spawn(health::health_loop(Arc::clone(&state)));

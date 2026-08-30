@@ -146,6 +146,23 @@ se remplit de lignes périmées. Deux colonnes utiles et quelques milliers de
 lignes ne justifient pas d'embarquer l'amalgame C de SQLite dans une image
 qu'on compile en croisé pour ARM.
 
+### Interception
+
+Un mode à part, **coupé par défaut**. Pour les seuls hôtes que vous inscrivez,
+la passerelle termine le TLS avec un certificat forgé par une autorité locale,
+rouvre un tunnel vers la vraie destination, et journalise le HTTP en clair qui
+circule entre les deux — URL complètes, codes, titres. Partout ailleurs, le
+trafic reste opaque. C'est ce qui fait passer le journal de « telle destination
+a été visitée » à « voici ce qui y a été consulté ».
+
+![Page Interception : autorité de certification, activation, liste blanche d'hôtes et certificats vus](docs/captures/interception.png)
+
+L'interception inverse le rôle habituel de la passerelle : elle est donc
+volontairement restreinte à une liste blanche explicite, ne vise que le port
+443, et repose sur une CA dont la clé ne quitte jamais le volume. La procédure
+complète — installation de la CA, limites (épinglage, HTTP/1.1 seul), régénération
+— est décrite dans [docs/interception.md](docs/interception.md).
+
 ### Toutes les pages
 
 | Page | Ce qu'on y fait |
@@ -155,6 +172,7 @@ qu'on compile en croisé pour ARM.
 | **Backends** | Adresses des proxys Tor et I2P, type de sortie, écoutes proposées au réseau local, authentification éventuelle des clients. |
 | **Tor** | Version et phase d'amorçage du démon, liste des circuits et de leurs relais, demande de nouvelle identité, fermeture d'un circuit. |
 | **Journal** | Destinations traversées — Tor, I2P et trafic standard — avec leur code HTTP, le titre de la page quand il est lisible, et le plafond de lignes conservées. Désactivé par défaut. |
+| **Interception** | Interception TLS des seuls hôtes d'une liste blanche : autorité de certification à installer, activation, hôtes surveillés, empreintes de certificats vues. Désactivée par défaut. |
 | **Santé** | Résultat des sondes de sortie : IP publique vue par chaque backend, confirmation que Tor est bien emprunté, détection d'un VPN d'hôte tombé. |
 | **Réglages** | Mot de passe administrateur, durée des sessions, export Prometheus. |
 

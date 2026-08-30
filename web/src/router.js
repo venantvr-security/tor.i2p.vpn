@@ -36,6 +36,12 @@ const routes = [
     meta: { title: 'Journal' },
   },
   {
+    path: '/interception',
+    name: 'interception',
+    component: () => import('./views/InterceptionView.vue'),
+    meta: { title: 'Interception' },
+  },
+  {
     path: '/sante',
     name: 'health',
     component: () => import('./views/HealthView.vue'),

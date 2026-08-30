@@ -82,6 +82,9 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(api::catalogue).delete(api::purge_catalogue),
         )
         .route("/api/routing/test", post(api::test_route))
+        .route("/api/mitm", get(api::mitm_status))
+        .route("/api/mitm/ca.pem", get(api::mitm_ca))
+        .route("/api/mitm/ca/regenerate", post(api::mitm_regenerate_ca))
         .route("/api/password", put(api::change_password))
         .route("/api/stream", get(stream))
         .route("/api/logout", post(logout))

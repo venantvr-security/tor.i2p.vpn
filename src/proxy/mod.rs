@@ -276,8 +276,30 @@ impl Session {
 
     /// Relaie jusqu'à la fermeture d'un des deux côtés, puis clôt
     /// l'enregistrement de la connexion.
-    pub async fn relay(&self, target: &Target, client: TcpStream, connected: Connected) {
+    ///
+    /// `intercept_eligible` n'est vrai que pour un tunnel opaque (SOCKS5, ou
+    /// CONNECT côté HTTP) : c'est le seul cas où le client s'apprête à parler
+    /// TLS et où l'interception a un sens. Une requête HTTP en clair, elle, est
+    /// déjà entièrement journalisée sans rien déchiffrer.
+    pub async fn relay(
+        &self,
+        target: &Target,
+        client: TcpStream,
+        connected: Connected,
+        intercept_eligible: bool,
+    ) {
         let config = self.state.config();
+
+        // Branche d'interception : uniquement pour les hôtes de la liste blanche,
+        // sur un tunnel TLS. Le pont tient le tunnel jusqu'à sa fermeture.
+        if intercept_eligible {
+            if let Some(host) = crate::mitm::host_to_intercept(&config, target) {
+                self.relay_intercepted(target, client, connected, host)
+                    .await;
+                return;
+            }
+        }
+
         let Connected {
             stream,
             backend_id,
@@ -326,6 +348,51 @@ impl Session {
             up = transferred.up,
             down = transferred.down,
             "tunnel fermé"
+        );
+    }
+
+    /// Relaie une connexion en l'interceptant : le pont MITM tient les deux
+    /// poignées de main TLS et journalise le HTTP en clair qui circule entre.
+    ///
+    /// Le permis de capacité et le garde de connexion active restent vivants
+    /// toute la durée du pont ; les compteurs d'octets par backend ne sont pas
+    /// alimentés ici — l'interception échange sa comptabilité fine contre la
+    /// visibilité applicative.
+    async fn relay_intercepted(
+        &self,
+        target: &Target,
+        client: TcpStream,
+        connected: Connected,
+        host: String,
+    ) {
+        let config = self.state.config();
+        let Connected {
+            stream,
+            backend_id,
+            catalogue_url: _,
+            counters: _,
+            _permit,
+            _active,
+        } = connected;
+
+        let idle = Duration::from_secs(config.proxy.idle_timeout_s.max(5));
+        crate::mitm::bridge::run(
+            Arc::clone(&self.state.mitm),
+            client,
+            stream,
+            host,
+            target.port,
+            idle,
+        )
+        .await;
+
+        self.write_record(
+            target,
+            Some(&backend_id),
+            None,
+            ConnectionStatus::Closed,
+            Default::default(),
+            Some("connexion interceptée".to_string()),
         );
     }
 

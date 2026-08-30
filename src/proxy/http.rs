@@ -119,7 +119,11 @@ async fn handle(state: Arc<AppState>, stream: TcpStream, peer: SocketAddr) {
         return;
     }
 
-    session.relay(&target, client, upstream).await;
+    // Seul un tunnel CONNECT (donc TLS) est éligible à l'interception ; une
+    // requête en clair est déjà journalisée intégralement.
+    session
+        .relay(&target, client, upstream, request.is_connect)
+        .await;
 }
 
 /// Confirme le tunnel au client, puis lui transmet ce qu'il avait déjà envoyé.

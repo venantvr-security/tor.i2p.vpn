@@ -64,3 +64,15 @@ les sondes de santé, et non le routage, qui vérifient qu'il tient.
 - Toute comparaison de secret se fait en temps constant.
 - En cas de doute sur une destination, on refuse : bloquer vaut mieux que
   laisser fuiter.
+
+## Interception (mode MITM)
+
+- Le module [`src/mitm/`](src/mitm/) implémente l'interception TLS optionnelle,
+  **désactivée par défaut** ; elle inverse la promesse de la passerelle et ne
+  vise qu'une liste blanche d'hôtes. Vue d'ensemble et limites :
+  [docs/interception.md](docs/interception.md).
+- La clé de la CA est le secret le plus sensible : elle vit dans le volume
+  (`mitm-ca-key.pem`, `0600`), n'est jamais exposée par l'API, et seul le
+  certificat public est proposé au téléchargement.
+- Le pont relaie le trafic **à l'octet près** ; il observe le contenu déchiffré
+  mais ne le réécrit jamais. En cas d'anomalie, on ferme plutôt que corrompre.

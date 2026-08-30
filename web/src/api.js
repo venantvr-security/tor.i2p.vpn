@@ -74,4 +74,9 @@ export const api = {
   purgeCatalogue: () => request('DELETE', '/api/catalogue'),
 
   testRoute: (host, port) => request('POST', '/api/routing/test', { host, port }),
+
+  mitm: () => request('GET', '/api/mitm'),
+  regenerateCa: () => request('POST', '/api/mitm/ca/regenerate'),
+  // Lien direct : le certificat se télécharge, il ne transite pas par fetch.
+  caUrl: '/api/mitm/ca.pem',
 }

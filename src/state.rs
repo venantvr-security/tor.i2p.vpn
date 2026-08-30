@@ -15,6 +15,7 @@ use crate::catalogue::Catalogue;
 use crate::config::Config;
 use crate::health::HealthRegistry;
 use crate::metrics::Metrics;
+use crate::mitm::Mitm;
 use crate::routing::Router;
 use crate::tor_control::TorControl;
 
@@ -33,29 +34,36 @@ pub struct AppState {
     pub health: Arc<HealthRegistry>,
     pub tor: Arc<TorControl>,
     pub catalogue: Arc<Catalogue>,
+    pub mitm: Arc<Mitm>,
     pub login_guard: Arc<crate::auth::LoginGuard>,
     active: Arc<AtomicUsize>,
 }
 
 impl AppState {
-    pub fn new(config: Config, config_path: PathBuf) -> Self {
+    pub fn new(config: Config, config_path: PathBuf) -> Result<Self> {
         let router = Router::from_config(&config);
-        let catalogue_path = config_path
+        let data_dir = config_path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
-            .join(CATALOGUE_FILE);
-        let catalogue = Catalogue::load(&catalogue_path, config.catalogue.max_entries);
-        AppState {
+            .to_path_buf();
+        let catalogue = Arc::new(Catalogue::load(
+            &data_dir.join(CATALOGUE_FILE),
+            config.catalogue.max_entries,
+        ));
+        let mitm = Mitm::new(&data_dir, Arc::clone(&catalogue))?;
+        mitm.sync_from_config(&config);
+        Ok(AppState {
             config_path,
             config: ArcSwap::from_pointee(config),
             router: ArcSwap::from_pointee(router),
             metrics: Arc::new(Metrics::new()),
             health: Arc::new(HealthRegistry::new()),
             tor: Arc::new(TorControl::new()),
-            catalogue: Arc::new(catalogue),
+            catalogue,
+            mitm,
             login_guard: Arc::new(crate::auth::LoginGuard::new()),
             active: Arc::new(AtomicUsize::new(0)),
-        }
+        })
     }
 
     pub fn config(&self) -> Arc<Config> {
@@ -89,6 +97,7 @@ impl AppState {
         // Le plafond du journal s'applique à chaud : l'abaisser doit rogner le
         // surplus tout de suite, et non à la prochaine visite.
         self.catalogue.set_max_entries(config.catalogue.max_entries);
+        self.mitm.sync_from_config(&config);
 
         self.router.store(Arc::new(Router::from_config(&config)));
         self.config.store(Arc::new(config));
@@ -147,7 +156,7 @@ mod tests {
         let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("tiv-test-{}-{unique}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        AppState::new(Config::default(), dir.join("config.toml"))
+        AppState::new(Config::default(), dir.join("config.toml")).unwrap()
     }
 
     #[test]

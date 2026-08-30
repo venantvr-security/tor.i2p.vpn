@@ -333,6 +333,50 @@ pub struct RouteAnswer {
     pub reason: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Interception TLS
+// ---------------------------------------------------------------------------
+
+/// État de l'interception, pour la page dédiée.
+pub async fn mitm_status(State(state): State<Arc<AppState>>) -> Json<crate::mitm::MitmStatus> {
+    let config = state.config();
+    Json(state.mitm.status(&config))
+}
+
+/// Sert le certificat public de la CA, à installer comme racine de confiance.
+pub async fn mitm_ca(State(state): State<Arc<AppState>>) -> Response {
+    let pem = state.mitm.ca().cert_pem().to_string();
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/x-pem-file"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"passerelle-interception-ca.pem\"",
+            ),
+        ],
+        pem,
+    )
+        .into_response()
+}
+
+#[derive(Serialize)]
+pub struct CaRegenerated {
+    pub fingerprint: String,
+}
+
+/// Régénère la CA. Rupture assumée : toute racine déjà installée devient caduque.
+pub async fn mitm_regenerate_ca(
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Json<CaRegenerated>> {
+    let fingerprint = state
+        .mitm
+        .regenerate_ca()
+        .map_err(|err| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}")))?;
+    info!("CA d'interception régénérée");
+    Ok(Json(CaRegenerated { fingerprint }))
+}
+
 /// Simule la table de routage : « où partirait ce nom d'hôte ? ».
 pub async fn test_route(
     State(state): State<Arc<AppState>>,

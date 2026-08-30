@@ -76,7 +76,8 @@ async fn handle(state: Arc<AppState>, mut stream: TcpStream, peer: SocketAddr) {
                 debug!(peer = %peer, %err, "tunnel abandonné avant le relais");
                 return;
             }
-            session.relay(&target, stream, connected).await;
+            // Un CONNECT SOCKS5 vers un port TLS est éligible à l'interception.
+            session.relay(&target, stream, connected, true).await;
         }
         Err(err) => {
             let _ = reply(&mut stream, err.socks5_reply()).await;
@@ -237,7 +238,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let state = Arc::new(AppState::new(config, dir.join("config.toml")));
+        let state = Arc::new(AppState::new(config, dir.join("config.toml")).unwrap());
         tokio::spawn(async move {
             loop {
                 let (stream, peer) = listener.accept().await.unwrap();

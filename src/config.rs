@@ -34,6 +34,7 @@ pub struct Config {
     pub tor_control: TorControlConfig,
     pub health: HealthConfig,
     pub catalogue: CatalogueConfig,
+    pub mitm: MitmConfig,
     #[serde(skip_serializing_if = "AuthConfig::is_empty")]
     pub auth: AuthConfig,
 }
@@ -48,6 +49,7 @@ impl Default for Config {
             tor_control: TorControlConfig::default(),
             health: HealthConfig::default(),
             catalogue: CatalogueConfig::default(),
+            mitm: MitmConfig::default(),
             auth: AuthConfig::default(),
         }
     }
@@ -381,6 +383,41 @@ impl Default for CatalogueConfig {
     }
 }
 
+/// Interception TLS (« man-in-the-middle ») des seuls hôtes désignés.
+///
+/// Désactivée par défaut, et à part du reste : elle inverse la promesse de la
+/// passerelle — protéger le trafic — pour la retourner en trafic déchiffré. Elle
+/// ne s'applique qu'à une liste blanche explicite d'hôtes, jamais à tout le
+/// trafic. La CA locale et sa clé vivent dans le volume, hors configuration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MitmConfig {
+    pub enabled: bool,
+    /// Hôtes à intercepter. Chaque entrée vaut :
+    ///   * un nom exact (`forum.onion`), casse ignorée ;
+    ///   * un suffixe si elle commence par un point (`.exemple.i2p`) ;
+    ///   * un joker de sous-domaines si elle commence par `*.` (`*.exemple.com`).
+    pub hosts: Vec<String>,
+}
+
+impl MitmConfig {
+    /// Un hôte donné tombe-t-il dans la liste blanche d'interception ?
+    pub fn intercepts(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        self.hosts.iter().any(|entry| {
+            let entry = entry.trim().to_ascii_lowercase();
+            if let Some(suffixe) = entry.strip_prefix("*.") {
+                // `*.exemple.com` couvre les sous-domaines, pas le domaine nu.
+                host.ends_with(&format!(".{suffixe}"))
+            } else if let Some(suffixe) = entry.strip_prefix('.') {
+                host == suffixe || host.ends_with(&format!(".{suffixe}"))
+            } else {
+                host == entry
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AuthConfig {
@@ -545,6 +582,17 @@ impl Config {
                 crate::catalogue::MIN_ENTRIES,
                 crate::catalogue::MAX_ENTRIES
             );
+        }
+        for host in &self.mitm.hosts {
+            if host.trim().is_empty() {
+                bail!("un hôte d'interception ne peut pas être vide");
+            }
+            if host.contains('/') || host.contains(':') {
+                bail!(
+                    "l'hôte d'interception `{}` doit être un nom seul, sans schéma ni port",
+                    host
+                );
+            }
         }
         Ok(())
     }
