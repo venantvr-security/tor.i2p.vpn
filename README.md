@@ -206,6 +206,10 @@ Dans CasaOS, le `docker-compose.yml` s'importe tel quel depuis
 *App Store → Custom Install* : il porte les métadonnées `x-casaos` (icône,
 catégorie, port de l'interface).
 
+Une fois l'application en place, la vie courante — d'où vient l'image, comment
+la mettre à jour, vérifier ou épingler ce qui tourne — est décrite dans
+[docs/deploiement-casaos.md](docs/deploiement-casaos.md).
+
 ## Image de conteneur
 
 L'image est publiée sur le registre GitHub, pour `linux/amd64` et
