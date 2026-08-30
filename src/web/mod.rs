@@ -77,6 +77,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/tor", get(api::tor_status))
         .route("/api/tor/newnym", post(api::tor_newnym))
         .route("/api/tor/circuits/{id}/close", post(api::tor_close_circuit))
+        .route(
+            "/api/catalogue",
+            get(api::catalogue).delete(api::purge_catalogue),
+        )
         .route("/api/routing/test", post(api::test_route))
         .route("/api/password", put(api::change_password))
         .route("/api/stream", get(stream))

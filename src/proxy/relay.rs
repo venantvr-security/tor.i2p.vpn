@@ -9,6 +9,7 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+use crate::catalogue::ResponseWatch;
 use crate::metrics::BackendCounters;
 
 /// 16 Kio maintient l'empreinte mémoire raisonnable avec quelques centaines de
@@ -27,11 +28,16 @@ pub struct Transferred {
 /// Les compteurs sont renvoyés même lorsque le relais se termine sur une
 /// erreur : un transfert échoué affiche ainsi de vrais chiffres dans
 /// l'interface.
+///
+/// `watch` observe le flux descendant pour le journal des destinations. Il ne
+/// modifie jamais les octets relayés et se désarme de lui-même dès qu'il n'a
+/// plus rien à apprendre, ce qui est immédiat sur un tunnel chiffré.
 pub async fn relay(
     client: TcpStream,
     upstream: TcpStream,
     counters: Arc<BackendCounters>,
     idle_timeout: Duration,
+    watch: Option<ResponseWatch>,
 ) -> (Transferred, io::Result<()>) {
     let (client_read, client_write) = client.into_split();
     let (upstream_read, upstream_write) = upstream.into_split();
@@ -46,6 +52,7 @@ pub async fn relay(
         Arc::clone(&counters),
         Direction::Up,
         idle_timeout,
+        None,
     );
     let download = pump(
         upstream_read,
@@ -54,6 +61,7 @@ pub async fn relay(
         Arc::clone(&counters),
         Direction::Down,
         idle_timeout,
+        watch,
     );
 
     let outcome = tokio::try_join!(upload, download).map(|_| ());
@@ -79,6 +87,7 @@ async fn pump<R, W>(
     counters: Arc<BackendCounters>,
     direction: Direction,
     idle_timeout: Duration,
+    mut watch: Option<ResponseWatch>,
 ) -> io::Result<()>
 where
     R: AsyncRead + Unpin,
@@ -103,6 +112,15 @@ where
             return Ok(());
         }
         writer.write_all(&buffer[..read]).await?;
+        // L'observation vient après l'écriture : le journal ne doit jamais
+        // retarder les octets du client.
+        if let Some(observer) = watch.as_mut() {
+            if observer.actif() {
+                observer.observe(&buffer[..read]);
+            } else {
+                watch = None;
+            }
+        }
         let read = read as u64;
         total.fetch_add(read, Ordering::Relaxed);
         match direction {
@@ -145,7 +163,14 @@ mod tests {
         let relay_task = tokio::spawn(async move {
             let (client, _) = client_listener.accept().await.unwrap();
             let upstream = TcpStream::connect(echo).await.unwrap();
-            relay(client, upstream, counters_for_relay, Duration::from_secs(5)).await
+            relay(
+                client,
+                upstream,
+                counters_for_relay,
+                Duration::from_secs(5),
+                None,
+            )
+            .await
         });
 
         let mut client = TcpStream::connect(client_addr).await.unwrap();
@@ -184,6 +209,7 @@ mod tests {
                 upstream,
                 Arc::new(BackendCounters::default()),
                 Duration::from_millis(120),
+                None,
             )
             .await
         });

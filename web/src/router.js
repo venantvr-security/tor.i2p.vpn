@@ -30,6 +30,12 @@ const routes = [
     meta: { title: 'Tor' },
   },
   {
+    path: '/journal',
+    name: 'catalogue',
+    component: () => import('./views/CatalogueView.vue'),
+    meta: { title: 'Journal' },
+  },
+  {
     path: '/sante',
     name: 'health',
     component: () => import('./views/HealthView.vue'),

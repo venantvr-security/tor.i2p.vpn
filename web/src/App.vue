@@ -14,6 +14,7 @@ const links = [
   { to: '/routage', label: 'Routage' },
   { to: '/backends', label: 'Backends' },
   { to: '/tor', label: 'Tor' },
+  { to: '/journal', label: 'Journal' },
   { to: '/sante', label: 'Santé' },
   { to: '/reglages', label: 'Réglages' },
 ]

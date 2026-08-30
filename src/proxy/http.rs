@@ -90,7 +90,7 @@ async fn handle(state: Arc<AppState>, stream: TcpStream, peer: SocketAddr) {
         }
     };
 
-    let connected = match session.establish(&target).await {
+    let connected = match session.establish(&target, request.absolute_url()).await {
         Ok(connected) => connected,
         Err(err) => {
             let (code, reason) = err.http_status();
@@ -197,6 +197,19 @@ impl Request {
         // l'en-tête `Host` s'il est présent.
         self.header("host")
             .and_then(|host| split_authority(host, 80))
+    }
+
+    /// URL complète, quand la requête en porte une.
+    ///
+    /// Un `CONNECT` n'en donne pas : il ouvre un tunnel vers une autorité, et
+    /// tout ce qui suit est chiffré. Le journal se contentera alors de
+    /// l'origine reconstruite.
+    fn absolute_url(&self) -> Option<&str> {
+        if self.is_connect {
+            return None;
+        }
+        (self.uri.starts_with("http://") || self.uri.starts_with("https://"))
+            .then_some(self.uri.as_str())
     }
 
     fn header(&self, name: &str) -> Option<&str> {

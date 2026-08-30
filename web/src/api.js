@@ -70,5 +70,8 @@ export const api = {
   torNewnym: () => request('POST', '/api/tor/newnym'),
   torCloseCircuit: (id) => request('POST', `/api/tor/circuits/${encodeURIComponent(id)}/close`),
 
+  catalogue: () => request('GET', '/api/catalogue'),
+  purgeCatalogue: () => request('DELETE', '/api/catalogue'),
+
   testRoute: (host, port) => request('POST', '/api/routing/test', { host, port }),
 }

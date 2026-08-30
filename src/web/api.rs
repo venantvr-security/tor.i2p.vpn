@@ -11,6 +11,7 @@ use serde_json::json;
 use tracing::info;
 
 use crate::auth;
+use crate::catalogue;
 use crate::config::Config;
 use crate::health::{self, HealthReport, HealthState};
 use crate::metrics::MetricsSnapshot;
@@ -241,6 +242,70 @@ pub async fn tor_close_circuit(
         .await
         .map_err(|err| ApiError::bad_request(format!("{err:#}")))?;
     Ok(Json(json!({ "ok": true })))
+}
+
+// ---------------------------------------------------------------------------
+// Journal des destinations
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct CatalogueEntry {
+    pub url: String,
+    pub code: Option<u16>,
+    pub titre: Option<String>,
+    pub vu: u64,
+    /// « tor », « i2p » ou « standard », déduit du suffixe de la destination.
+    pub reseau: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct CatalogueView {
+    pub enabled: bool,
+    pub capture_titles: bool,
+    pub max_entries: usize,
+    /// Bornes acceptées par la configuration, pour que l'interface les impose
+    /// au lieu de laisser l'utilisateur découvrir le refus à l'enregistrement.
+    pub min_allowed: usize,
+    pub max_allowed: usize,
+    pub count: usize,
+    pub entries: Vec<CatalogueEntry>,
+}
+
+pub async fn catalogue(State(state): State<Arc<AppState>>) -> Json<CatalogueView> {
+    let config = state.config();
+    let entries: Vec<CatalogueEntry> = state
+        .catalogue
+        .entries()
+        .into_iter()
+        .map(|entry| CatalogueEntry {
+            reseau: entry.reseau(),
+            url: entry.url,
+            code: entry.code,
+            titre: entry.titre,
+            vu: entry.vu,
+        })
+        .collect();
+    Json(CatalogueView {
+        enabled: config.catalogue.enabled,
+        capture_titles: config.catalogue.capture_titles,
+        max_entries: state.catalogue.max_entries(),
+        min_allowed: catalogue::MIN_ENTRIES,
+        max_allowed: catalogue::MAX_ENTRIES,
+        count: entries.len(),
+        entries,
+    })
+}
+
+/// Efface le journal, en mémoire comme sur disque.
+pub async fn purge_catalogue(
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Json<serde_json::Value>> {
+    state
+        .catalogue
+        .purge()
+        .map_err(|err| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+    info!("journal des destinations effacé");
+    Ok(Json(json!({ "count": 0 })))
 }
 
 // ---------------------------------------------------------------------------

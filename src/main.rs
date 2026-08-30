@@ -11,6 +11,7 @@
 //! ici. Seules les sondes de santé peuvent constater qu'il tient toujours.
 
 mod auth;
+mod catalogue;
 mod config;
 mod health;
 mod metrics;

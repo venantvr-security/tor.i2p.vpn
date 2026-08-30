@@ -31,7 +31,7 @@ flowchart LR
         subgraph C["Conteneur tiv-gateway"]
             L["Écoutes<br/>SOCKS5 :1080<br/>HTTP :8118"]
             R{"Routeur<br/>par suffixe"}
-            W["Interface web<br/>:8080"]
+            W["Interface web<br/>:8090"]
         end
         T["tor<br/>SOCKS 127.0.0.1:9050"]
         I["i2pd<br/>SOCKS 127.0.0.1:4447"]
@@ -121,6 +121,31 @@ réseau local :
 
 ![Page des backends : les trois sorties configurées et les écoutes proxy](docs/captures/backends.png)
 
+### Journal
+
+Facultatif, et coupé par défaut. Une fois activé, il retient les destinations
+traversées avec leur code HTTP et, quand la page est servie en clair, son titre.
+Le plafond se règle sur place : au-delà, la plus ancienne ligne sort.
+
+![Page Journal : destinations traversées avec leur code HTTP, leur titre et le plafond de lignes](docs/captures/journal.png)
+
+Cette capture vient d'une passerelle d'essai dont le trafic est local, faute de
+démon Tor ou I2P sur la machine de développement : les compteurs Tor et I2P y
+sont donc à zéro, mais le mécanisme montré est exactement le même.
+
+Ce qui est **toujours** consigné : l'URL et l'heure du dernier passage. Ce qui
+ne l'est **que parfois** : le code HTTP, dès lors que la réponse n'est pas
+chiffrée, et le titre, aux mêmes conditions plus `text/html` non compressé dans
+les 64 premiers kilo-octets. En HTTPS, ni l'un ni l'autre — le tunnel est
+opaque, et la passerelle ne le déchiffre pas ; en SOCKS5, la poignée de main ne
+transporte pas de chemin, l'URL se réduit alors à l'origine.
+
+Il n'y a pas de base SQL derrière : `catalogue.jsonl` vit à côté de
+`config.toml`, une ligne par destination, relu au démarrage et compacté quand il
+se remplit de lignes périmées. Deux colonnes utiles et quelques milliers de
+lignes ne justifient pas d'embarquer l'amalgame C de SQLite dans une image
+qu'on compile en croisé pour ARM.
+
 ### Toutes les pages
 
 | Page | Ce qu'on y fait |
@@ -129,6 +154,7 @@ réseau local :
 | **Routage** | Écriture des règles, réordonnancement par priorité, garde-fous de sécurité, et un simulateur qui répond « où partirait ce nom d'hôte ? » sans ouvrir la moindre connexion. |
 | **Backends** | Adresses des proxys Tor et I2P, type de sortie, écoutes proposées au réseau local, authentification éventuelle des clients. |
 | **Tor** | Version et phase d'amorçage du démon, liste des circuits et de leurs relais, demande de nouvelle identité, fermeture d'un circuit. |
+| **Journal** | Destinations traversées — Tor, I2P et trafic standard — avec leur code HTTP, le titre de la page quand il est lisible, et le plafond de lignes conservées. Désactivé par défaut. |
 | **Santé** | Résultat des sondes de sortie : IP publique vue par chaque backend, confirmation que Tor est bien emprunté, détection d'un VPN d'hôte tombé. |
 | **Réglages** | Mot de passe administrateur, durée des sessions, export Prometheus. |
 
@@ -172,7 +198,7 @@ sudo chown -R 1000:1000 /DATA/AppData/tiv-gateway
 TIV_ADMIN_PASSWORD='un-mot-de-passe-solide' docker compose up -d
 ```
 
-Puis ouvrez `http://IP_DU_PI:8080`. Sans `TIV_ADMIN_PASSWORD`, le premier écran
+Puis ouvrez `http://IP_DU_PI:8090`. Sans `TIV_ADMIN_PASSWORD`, le premier écran
 vous demande de créer le mot de passe administrateur ; tant qu'il n'existe pas,
 l'API refuse tout le reste.
 
@@ -219,7 +245,7 @@ demie au lieu de la demi-heure qu'imposerait l'émulation du compilateur.
 ```mermaid
 flowchart TB
     subgraph H["Machine hôte, réseau partagé"]
-        G["tiv-gateway<br/>8080 · 1080 · 8118"]
+        G["tiv-gateway<br/>8090 · 1080 · 8118"]
         T["tor :9050"]
         I["i2pd :4447"]
         V["Route par défaut du système<br/>tunnel VPN s'il y en a un"]
@@ -357,6 +383,7 @@ Toutes les routes sont sous `/api` et exigent le cookie de session, hormis
 | `GET /api/stream` | Même instantané poussé en SSE toutes les deux secondes. |
 | `GET·PUT /api/config` | Lecture et enregistrement de la configuration. |
 | `POST /api/routing/test` | Simulation de routage pour un couple hôte/port. |
+| `GET·DELETE /api/catalogue` | Journal des destinations, et son effacement. |
 | `GET /api/tor`, `POST /api/tor/newnym` | État des circuits, nouvelle identité. |
 | `GET /api/health`, `POST /api/health/run` | Sondes de sortie. |
 | `GET /api/metrics/prometheus` | Exposition Prometheus des mêmes compteurs. |

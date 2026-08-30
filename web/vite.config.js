@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.TIV_DEV_API ?? 'http://127.0.0.1:8080',
+        target: process.env.TIV_DEV_API ?? 'http://127.0.0.1:8090',
         changeOrigin: false,
       },
     },

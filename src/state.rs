@@ -11,11 +11,19 @@ use std::sync::Arc;
 use anyhow::Result;
 use arc_swap::ArcSwap;
 
+use crate::catalogue::Catalogue;
 use crate::config::Config;
 use crate::health::HealthRegistry;
 use crate::metrics::Metrics;
 use crate::routing::Router;
 use crate::tor_control::TorControl;
+
+/// Nom du journal, toujours déposé à côté de `config.toml`.
+///
+/// Il n'est volontairement pas configurable : un chemin de plus dans la
+/// configuration serait un chemin de plus à changer par inadvertance, pour un
+/// fichier qui appartient au même volume de données que le reste.
+const CATALOGUE_FILE: &str = "catalogue.jsonl";
 
 pub struct AppState {
     pub config_path: PathBuf,
@@ -24,6 +32,7 @@ pub struct AppState {
     pub metrics: Arc<Metrics>,
     pub health: Arc<HealthRegistry>,
     pub tor: Arc<TorControl>,
+    pub catalogue: Arc<Catalogue>,
     pub login_guard: Arc<crate::auth::LoginGuard>,
     active: Arc<AtomicUsize>,
 }
@@ -31,6 +40,11 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: Config, config_path: PathBuf) -> Self {
         let router = Router::from_config(&config);
+        let catalogue_path = config_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .join(CATALOGUE_FILE);
+        let catalogue = Catalogue::load(&catalogue_path, config.catalogue.max_entries);
         AppState {
             config_path,
             config: ArcSwap::from_pointee(config),
@@ -38,6 +52,7 @@ impl AppState {
             metrics: Arc::new(Metrics::new()),
             health: Arc::new(HealthRegistry::new()),
             tor: Arc::new(TorControl::new()),
+            catalogue: Arc::new(catalogue),
             login_guard: Arc::new(crate::auth::LoginGuard::new()),
             active: Arc::new(AtomicUsize::new(0)),
         }
@@ -70,6 +85,10 @@ impl AppState {
         if previous.proxy.http_bind != config.proxy.http_bind {
             restart_needed.push("écoute proxy HTTP".to_string());
         }
+
+        // Le plafond du journal s'applique à chaud : l'abaisser doit rogner le
+        // surplus tout de suite, et non à la prochaine visite.
+        self.catalogue.set_max_entries(config.catalogue.max_entries);
 
         self.router.store(Arc::new(Router::from_config(&config)));
         self.config.store(Arc::new(config));

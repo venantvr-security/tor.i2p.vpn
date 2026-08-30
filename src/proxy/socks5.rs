@@ -67,7 +67,7 @@ async fn handle(state: Arc<AppState>, mut stream: TcpStream, peer: SocketAddr) {
         }
     };
 
-    match session.establish(&target).await {
+    match session.establish(&target, None).await {
         Ok(connected) => {
             // Le client peut disparaître entre l'ouverture du tunnel et notre
             // réponse : l'enregistrement doit alors être clos, pas laissé actif.

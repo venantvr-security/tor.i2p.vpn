@@ -158,6 +158,25 @@ i2p_check_url = "http://stats.i2p/"
 
 history_len = 120
 
+# --- Journal des destinations -------------------------------------------------
+
+[catalogue]
+# Consigne les destinations traversées — Tor, I2P et trafic standard confondus —
+# dans `catalogue.jsonl`, déposé à côté de ce fichier. Ce journal est une trace
+# de navigation : il est désactivé par défaut, et l'activer est un choix.
+enabled = false
+
+# Relève aussi le titre des pages. Il n'est lisible que sur du HTTP en clair,
+# non compressé, en text/html, et si la balise tombe dans les 64 premiers Kio.
+# Le code HTTP, lui, est relevé dès que la réponse n'est pas chiffrée. En HTTPS,
+# ni l'un ni l'autre : le tunnel est opaque et la passerelle ne le déchiffre pas.
+capture_titles = true
+
+# Plafond de destinations distinctes conservées, entre 10 et 20000. Le journal
+# se comporte en file : au-delà, la plus ancienne sort. Une destination revue
+# remonte en tête au lieu d'être dupliquée.
+max_entries = 500
+
 # --- Administration ----------------------------------------------------------
 
 [auth]

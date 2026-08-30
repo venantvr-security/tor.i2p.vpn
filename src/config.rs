@@ -33,6 +33,7 @@ pub struct Config {
     pub routing: RoutingConfig,
     pub tor_control: TorControlConfig,
     pub health: HealthConfig,
+    pub catalogue: CatalogueConfig,
     #[serde(skip_serializing_if = "AuthConfig::is_empty")]
     pub auth: AuthConfig,
 }
@@ -46,6 +47,7 @@ impl Default for Config {
             routing: RoutingConfig::default(),
             tor_control: TorControlConfig::default(),
             health: HealthConfig::default(),
+            catalogue: CatalogueConfig::default(),
             auth: AuthConfig::default(),
         }
     }
@@ -65,7 +67,7 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            admin_bind: "0.0.0.0:8080".to_string(),
+            admin_bind: "0.0.0.0:8090".to_string(),
         }
     }
 }
@@ -352,6 +354,33 @@ impl Default for HealthConfig {
     }
 }
 
+/// Journal des destinations traversées.
+///
+/// Désactivé par défaut : sur une passerelle dont le rôle est de protéger le
+/// trafic, écrire sur disque la liste des services visités est un choix
+/// délibéré, pas un réglage anodin. Le fichier vit à côté de `config.toml`,
+/// sous le nom `catalogue.jsonl`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CatalogueConfig {
+    pub enabled: bool,
+    /// Relève aussi le titre des pages servies en clair. Le code HTTP, lui, est
+    /// relevé dès que la réponse n'est pas chiffrée.
+    pub capture_titles: bool,
+    /// Plafond de lignes conservées. Au-delà, la plus ancienne sort.
+    pub max_entries: usize,
+}
+
+impl Default for CatalogueConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            capture_titles: true,
+            max_entries: 500,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AuthConfig {
@@ -508,6 +537,14 @@ impl Config {
         }
         if self.proxy.max_connections == 0 {
             bail!("max_connections doit être strictement positif");
+        }
+        let bornes = crate::catalogue::MIN_ENTRIES..=crate::catalogue::MAX_ENTRIES;
+        if !bornes.contains(&self.catalogue.max_entries) {
+            bail!(
+                "le plafond du journal doit être compris entre {} et {} lignes",
+                crate::catalogue::MIN_ENTRIES,
+                crate::catalogue::MAX_ENTRIES
+            );
         }
         Ok(())
     }

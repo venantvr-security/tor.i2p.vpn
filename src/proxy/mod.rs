@@ -25,7 +25,7 @@ pub mod relay;
 pub mod socks5;
 pub mod upstream;
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -33,8 +33,9 @@ use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 use tracing::{debug, info, warn};
 
+use crate::catalogue::{self, ResponseWatch};
 use crate::metrics::{now_ms, BackendCounters, ConnectionRecord, ConnectionStatus};
-use crate::routing::{DenyReason, Target, Verdict};
+use crate::routing::{DenyReason, Host, Target, Verdict};
 use crate::state::{AppState, CapacityPermit};
 use upstream::UpstreamError;
 
@@ -107,6 +108,9 @@ impl SessionError {
 pub struct Connected {
     pub stream: TcpStream,
     pub backend_id: String,
+    /// URL consignée au journal, lorsqu'il est actif. Le relais s'en sert pour
+    /// rattacher le code HTTP et le titre découverts dans le flux descendant.
+    catalogue_url: Option<String>,
     counters: Arc<BackendCounters>,
     _permit: CapacityPermit,
     _active: ActiveGuard,
@@ -153,7 +157,16 @@ impl Session {
     }
 
     /// Route `target`, puis compose vers le backend retenu.
-    pub async fn establish(&self, target: &Target) -> Result<Connected, SessionError> {
+    ///
+    /// `url` porte l'URL complète lorsque l'écoute la connaît — c'est le cas du
+    /// proxy HTTP en URI absolue. En SOCKS5 elle est reconstruite à partir de
+    /// l'hôte et du port, faute de mieux : la poignée de main ne transporte pas
+    /// de chemin.
+    pub async fn establish(
+        &self,
+        target: &Target,
+        url: Option<&str>,
+    ) -> Result<Connected, SessionError> {
         let config = self.state.config();
         let decision = self.state.router().route(target, &config.backends);
 
@@ -232,6 +245,7 @@ impl Session {
                 );
                 Ok(Connected {
                     stream,
+                    catalogue_url: self.note_visit(target, url),
                     backend_id: decision.backend_id,
                     counters: Arc::clone(&counters),
                     _permit: permit,
@@ -267,16 +281,29 @@ impl Session {
         let Connected {
             stream,
             backend_id,
+            catalogue_url,
             counters,
             _permit,
             _active,
         } = connected;
+
+        // Le renifleur ne regarde que le flux descendant, et abandonne dès le
+        // premier octet qui n'est pas du HTTP en clair : le tunnel reste un
+        // tuyau d'octets, pas un analyseur posé sur le trafic de l'utilisateur.
+        let watch = catalogue_url.map(|url| {
+            ResponseWatch::new(
+                Arc::clone(&self.state.catalogue),
+                url,
+                config.catalogue.capture_titles,
+            )
+        });
 
         let (transferred, outcome) = relay::relay(
             client,
             stream,
             Arc::clone(&counters),
             Duration::from_secs(config.proxy.idle_timeout_s.max(5)),
+            watch,
         )
         .await;
 
@@ -300,6 +327,23 @@ impl Session {
             down = transferred.down,
             "tunnel fermé"
         );
+    }
+
+    /// Consigne la destination au journal, s'il est actif, et renvoie l'URL
+    /// retenue pour que le relais puisse l'enrichir.
+    fn note_visit(&self, target: &Target, url: Option<&str>) -> Option<String> {
+        if !self.state.config().catalogue.enabled {
+            return None;
+        }
+        let host = match &target.host {
+            Host::Name(name) => name.clone(),
+            // Les crochets d'une IPv6 font partie de l'autorité de l'URL.
+            Host::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
+            Host::Ip(ip) => ip.to_string(),
+        };
+        let url = catalogue::url_for(&host, target.port, url);
+        self.state.catalogue.visit(&url);
+        Some(url)
     }
 
     /// Consigne un tunnel abandonné entre son établissement et le relais, quand
